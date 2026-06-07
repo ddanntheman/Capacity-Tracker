@@ -70,7 +70,10 @@ public class ProjectsFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
         if (!result.Allowed) return result.Error!;
 
         var body = await req.ReadFromJsonAsync<UpdateProjectRequest>();
-        if (body is null) return new BadRequestResult();
+        if (body is null || string.IsNullOrWhiteSpace(body.ClientName) || string.IsNullOrWhiteSpace(body.ProjectName))
+        {
+            return new BadRequestObjectResult(new { error = "ClientName and ProjectName are required." });
+        }
         if (!TryParseStatus(body.Status, out var status))
         {
             return new BadRequestObjectResult(new { error = "Status must be active, pipeline, or closed." });

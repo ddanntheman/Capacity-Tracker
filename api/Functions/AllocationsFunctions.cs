@@ -67,13 +67,17 @@ public class AllocationsFunctions(CapacityDbContext db, RequestAuthorizer auth, 
             return Http(new BadRequestObjectResult(new { error = $"PercentAllocated must be between 0 and {MaxPercent}." }));
         }
 
+        // Normalize to the Monday of the week so the (PersonId, ProjectId, WeekStart)
+        // grain holds regardless of which weekday the caller supplies.
+        var weekStart = WeekHelper.WeekStartOf(body.WeekStart);
+
         var personExists = await db.People.AnyAsync(p => p.PersonId == body.PersonId && p.IsActive);
         var projectOpen = await db.Projects.AnyAsync(p => p.ProjectId == body.ProjectId && p.Status != ProjectStatus.Closed);
         if (!personExists) return Http(new BadRequestObjectResult(new { error = "Unknown or inactive person." }));
         if (!projectOpen) return Http(new BadRequestObjectResult(new { error = "Project is closed or does not exist." }));
 
         var existing = await db.Allocations.FirstOrDefaultAsync(a =>
-            a.PersonId == body.PersonId && a.ProjectId == body.ProjectId && a.WeekStart == body.WeekStart);
+            a.PersonId == body.PersonId && a.ProjectId == body.ProjectId && a.WeekStart == weekStart);
 
         // A zero percent upsert removes the row.
         if (body.PercentAllocated == 0)
@@ -86,7 +90,7 @@ public class AllocationsFunctions(CapacityDbContext db, RequestAuthorizer auth, 
         }
 
         var otherTotal = await db.Allocations
-            .Where(a => a.PersonId == body.PersonId && a.WeekStart == body.WeekStart
+            .Where(a => a.PersonId == body.PersonId && a.WeekStart == weekStart
                 && (existing == null || a.AllocationId != existing.AllocationId))
             .SumAsync(a => (int?)a.PercentAllocated) ?? 0;
 
@@ -109,7 +113,7 @@ public class AllocationsFunctions(CapacityDbContext db, RequestAuthorizer auth, 
                 AllocationId = Guid.NewGuid(),
                 PersonId = body.PersonId,
                 ProjectId = body.ProjectId,
-                WeekStart = body.WeekStart,
+                WeekStart = weekStart,
                 PercentAllocated = body.PercentAllocated,
             };
             db.Allocations.Add(allocation);

@@ -75,7 +75,10 @@ public class PeopleFunctions(CapacityDbContext db, RequestAuthorizer auth, Audit
         if (!result.Allowed) return result.Error!;
 
         var body = await req.ReadFromJsonAsync<UpdatePersonRequest>();
-        if (body is null) return new BadRequestResult();
+        if (body is null || string.IsNullOrWhiteSpace(body.DisplayName) || string.IsNullOrWhiteSpace(body.Email))
+        {
+            return new BadRequestObjectResult(new { error = "DisplayName and Email are required." });
+        }
 
         var person = await db.People.FirstOrDefaultAsync(p => p.PersonId == id);
         if (person is null) return new NotFoundResult();

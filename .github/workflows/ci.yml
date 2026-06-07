@@ -15,7 +15,7 @@ jobs:
     name: API (.NET) Build & Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -46,7 +46,7 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: actions/setup-node@v4
         with:
@@ -73,7 +73,7 @@ jobs:
     name: Bicep Validate & IaC Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Bicep build
         run: |
@@ -95,7 +95,7 @@ jobs:
     container:
       image: returntocorp/semgrep
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Semgrep Scan
         run: semgrep scan --config auto --error
 
@@ -103,7 +103,7 @@ jobs:
     name: Secret Scanning (Gitleaks)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0 # fetch all history for deep scanning
       - name: Gitleaks Scan
@@ -117,7 +117,7 @@ jobs:
     name: Container Vulnerability Scan (Trivy)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       # Note: Trivy is prepared here for any future container builds.
       # Since we deploy directly to Azure App Service / Static Web Apps,
       # we run Trivy filesystem scan as a compliance baseline.

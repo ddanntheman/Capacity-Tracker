@@ -114,3 +114,15 @@ jobs:
           app_location: web/dist
           skip_app_build: true
           skip_api_build: true
+
+      # ---------------------------------------------------------------
+      # 5. DAST Scan (OWASP ZAP on dev/staging deployment)
+      # ---------------------------------------------------------------
+      - name: Run OWASP ZAP DAST Scan
+        if: inputs.environment == 'dev'
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          target: 'https://dev.capacitytracker.andersenconsulting.com' # Target staging URL
+          fail_action: false
+

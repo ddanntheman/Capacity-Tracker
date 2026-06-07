@@ -7,48 +7,125 @@ on:
 
 permissions:
   contents: read
+  security-events: write
+  actions: read
 
 jobs:
   api:
-    name: API (.NET) build
+    name: API (.NET) Build & Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+
       - name: Restore
         run: dotnet restore api/CapacityTracker.Api.csproj
+
+      - name: Lint and Format Check
+        run: dotnet format api/CapacityTracker.Api.csproj --verify-no-changes --severity info
+
       - name: Build
         run: dotnet build api/CapacityTracker.Api.csproj -c Release --no-restore
 
+      - name: Run Unit Tests
+        run: |
+          dotnet test api/CapacityTracker.Api.Tests/CapacityTracker.Api.Tests.csproj \
+            --configuration Release \
+            --no-build \
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./coverage
+        # Coverage floor can be verified via coverlet threshold or custom scripts
+
   web:
-    name: Web (React) build & lint
+    name: Web (React) Build & Test
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: web
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: web/package-lock.json
+
       - name: Install
         run: npm ci
+
       - name: Lint
         run: npm run lint
+
+      - name: Type Check
+        run: npm run typecheck
+
+      - name: Run Unit Tests
+        run: npm run test
+
       - name: Build
         run: npm run build
 
   infra:
-    name: Bicep validate
+    name: Bicep Validate & IaC Scan
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Bicep build
         run: |
           az bicep build --file infra/main.bicep
           az bicep build-params --file infra/main.dev.bicepparam --outfile /tmp/dev.params.json
           az bicep build-params --file infra/main.prod.bicepparam --outfile /tmp/prod.params.json
+
+      - name: Run Checkov (IaC Scan)
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: infra
+          framework: bicep
+          quiet: true
+          soft_fail: true # soft-fail prevents blocking the pipeline for warning items during testing
+
+  sast:
+    name: SAST Scan (Semgrep)
+    runs-on: ubuntu-latest
+    container:
+      image: returntocorp/semgrep
+    steps:
+      - uses: actions/checkout@v4
+      - name: Semgrep Scan
+        run: semgrep scan --config auto --error
+
+  secrets:
+    name: Secret Scanning (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # fetch all history for deep scanning
+      - name: Gitleaks Scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          has-remediate: true
+
+  container-scan:
+    name: Container Vulnerability Scan (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Note: Trivy is prepared here for any future container builds.
+      # Since we deploy directly to Azure App Service / Static Web Apps,
+      # we run Trivy filesystem scan as a compliance baseline.
+      - name: Trivy Filesystem Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          format: 'table'
+          exit-code: '0'
+          severity: 'HIGH,CRITICAL'

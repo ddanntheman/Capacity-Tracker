@@ -1,0 +1,14 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "SqlConnectionString": "Server=localhost,1433;Database=capacity;User Id=sa;Password=Your_password123;TrustServerCertificate=true;",
+    "AzureSignalRConnectionString": "Endpoint=http://localhost;Port=8888;AccessKey=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGH;Version=1.0;",
+    "ALLOW_DEV_AUTH": "true",
+    "DEV_DEFAULT_ROLES": "editor,leadership"
+  },
+  "Host": {
+    "CORS": "*"
+  }
+}

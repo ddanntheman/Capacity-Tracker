@@ -1,0 +1,42 @@
+# ---- .NET / Azure Functions ----
+[Bb]in/
+[Oo]bj/
+*.user
+api-publish/
+local.settings.json
+bin/
+obj/
+
+# ---- Node / Vite ----
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+
+# ---- Editors / OS ----
+.vs/
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# ---- Logs ----
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# ---- Bicep build artifacts ----
+infra/**/*.json
+!infra/**/*.parameters.json
+
+# ---- Secrets / env ----
+.env
+.env.*
+!.env.example
+*.pfx
+*.publishsettings
+
+# TypeScript incremental build info
+*.tsbuildinfo

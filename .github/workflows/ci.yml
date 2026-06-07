@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    name: API (.NET) build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore
+        run: dotnet restore api/CapacityTracker.Api.csproj
+      - name: Build
+        run: dotnet build api/CapacityTracker.Api.csproj -c Release --no-restore
+
+  web:
+    name: Web (React) build & lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Build
+        run: npm run build
+
+  infra:
+    name: Bicep validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bicep build
+        run: |
+          az bicep build --file infra/main.bicep
+          az bicep build-params --file infra/main.dev.bicepparam --outfile /tmp/dev.params.json
+          az bicep build-params --file infra/main.prod.bicepparam --outfile /tmp/prod.params.json

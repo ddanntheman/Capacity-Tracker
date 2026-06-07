@@ -1,0 +1,10 @@
+# Default owners for everything in the repo.
+# Update these handles after the repository is transferred to the
+# Andersen-Consulting organization.
+*                 @Andersen-Consulting/capacity-tracker-maintainers
+
+/infra/           @Andersen-Consulting/platform-engineering
+/.github/         @Andersen-Consulting/platform-engineering
+/api/             @Andersen-Consulting/capacity-tracker-maintainers
+/web/             @Andersen-Consulting/capacity-tracker-maintainers
+/db/              @Andersen-Consulting/capacity-tracker-maintainers

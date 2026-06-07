@@ -1,0 +1,116 @@
+name: Deploy (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: Target environment (dev or prod).
+        required: true
+        type: string
+      params_file:
+        description: Path to the .bicepparam file.
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # ---------------------------------------------------------------
+      # 1. Infrastructure (subscription-scoped Bicep deployment)
+      # ---------------------------------------------------------------
+      - name: Deploy infrastructure
+        id: infra
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            outputs=$(az deployment sub create \
+              --name capacity-${{ inputs.environment }}-${{ github.run_number }} \
+              --location ${{ vars.AZURE_REGION }} \
+              --template-file infra/main.bicep \
+              --parameters ${{ inputs.params_file }} \
+              --query properties.outputs -o json)
+            echo "rg=$(echo "$outputs" | jq -r .resourceGroupName.value)" >> "$GITHUB_OUTPUT"
+            echo "functionApp=$(echo "$outputs" | jq -r .functionAppName.value)" >> "$GITHUB_OUTPUT"
+            echo "staticWebApp=$(echo "$outputs" | jq -r .staticWebAppName.value)" >> "$GITHUB_OUTPUT"
+
+      # ---------------------------------------------------------------
+      # 2. Database migration (idempotent SQL, Entra access token)
+      # ---------------------------------------------------------------
+      - name: Apply database migrations
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            server=$(az deployment sub show \
+              --name capacity-${{ inputs.environment }}-${{ github.run_number }} \
+              --query properties.outputs.sqlServerFqdn.value -o tsv)
+            token=$(az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv)
+            curl -sSL https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc > /dev/null
+            curl -sSL https://packages.microsoft.com/config/ubuntu/22.04/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list > /dev/null
+            sudo apt-get update && sudo ACCEPT_EULA=Y apt-get install -y mssql-tools18
+            /opt/mssql-tools18/bin/sqlcmd -S "$server" -d capacity -G -P "$token" -C -i db/migrations/0001_initial.sql
+
+      # ---------------------------------------------------------------
+      # 3. Backend (Azure Functions, .NET 8 isolated)
+      # ---------------------------------------------------------------
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Publish Functions app
+        run: dotnet publish api/CapacityTracker.Api.csproj -c Release -o ./api-publish
+      - name: Deploy Functions app
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ steps.infra.outputs.functionApp }}
+          package: ./api-publish
+
+      # ---------------------------------------------------------------
+      # 4. Frontend (build + Static Web Apps deploy)
+      # ---------------------------------------------------------------
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Build web
+        run: |
+          npm ci
+          npm run build
+        working-directory: web
+      - name: Get Static Web Apps deployment token
+        id: swa
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            token=$(az staticwebapp secrets list \
+              --name ${{ steps.infra.outputs.staticWebApp }} \
+              --resource-group ${{ steps.infra.outputs.rg }} \
+              --query properties.apiKey -o tsv)
+            echo "::add-mask::$token"
+            echo "token=$token" >> "$GITHUB_OUTPUT"
+      - name: Deploy Static Web App
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ steps.swa.outputs.token }}
+          action: upload
+          app_location: web/dist
+          skip_app_build: true
+          skip_api_build: true

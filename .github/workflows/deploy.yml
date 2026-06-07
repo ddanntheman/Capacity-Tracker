@@ -36,7 +36,7 @@ jobs:
       # ---------------------------------------------------------------
       - name: Deploy infrastructure
         id: infra
-        uses: azure/cli@v2
+        uses: azure/cli@v3
         with:
           azcliversion: latest
           inlineScript: |
@@ -54,7 +54,7 @@ jobs:
       # 2. Database migration (idempotent SQL, Entra access token)
       # ---------------------------------------------------------------
       - name: Apply database migrations
-        uses: azure/cli@v2
+        uses: azure/cli@v3
         with:
           azcliversion: latest
           inlineScript: |
@@ -96,7 +96,7 @@ jobs:
         working-directory: web
       - name: Get Static Web Apps deployment token
         id: swa
-        uses: azure/cli@v2
+        uses: azure/cli@v3
         with:
           azcliversion: latest
           inlineScript: |

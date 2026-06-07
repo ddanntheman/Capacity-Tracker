@@ -11,10 +11,10 @@ DECLARE @dave  uniqueidentifier = '44444444-4444-4444-4444-444444444444';
 
 MERGE [People] AS t
 USING (VALUES
-    (@alice, N'Alice Anderson', N'alice@bdemerson.com', N'Managing Director', NULL, 1),
-    (@bob,   N'Bob Brown',      N'bob@bdemerson.com',   N'Senior Consultant', @alice, 1),
-    (@carol, N'Carol Clarke',   N'carol@bdemerson.com', N'Consultant',        @alice, 1),
-    (@dave,  N'Dave Davis',     N'dave@bdemerson.com',  N'Analyst',           @bob,   1)
+    (@alice, N'Alice Anderson', N'alice@andersenconsulting.com', N'Managing Director', NULL, 1),
+    (@bob,   N'Bob Brown',      N'bob@andersenconsulting.com',   N'Senior Consultant', @alice, 1),
+    (@carol, N'Carol Clarke',   N'carol@andersenconsulting.com', N'Consultant',        @alice, 1),
+    (@dave,  N'Dave Davis',     N'dave@andersenconsulting.com',  N'Analyst',           @bob,   1)
 ) AS s (PersonId, DisplayName, Email, JobTitle, ManagerId, IsActive)
 ON t.PersonId = s.PersonId
 WHEN MATCHED THEN UPDATE SET DisplayName = s.DisplayName, Email = s.Email, JobTitle = s.JobTitle, ManagerId = s.ManagerId, IsActive = s.IsActive

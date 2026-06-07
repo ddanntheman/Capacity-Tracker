@@ -3,13 +3,13 @@
 A consulting **capacity-planning** application for tracking people, projects, and
 weekly allocations, with leadership dashboards, an append-only audit log, and
 real-time updates. It runs entirely on managed Azure PaaS, uses **Entra ID single
-sign-on** (no custom auth code), and stores **no long-lived secrets** — every
+sign-on** (no custom auth code), and stores **no long-lived secrets**: every
 service-to-service connection uses managed identity, and every deployment uses
 GitHub OIDC federated credentials.
 
-- **Author / owner:** Drew Danner (`drew.danner@bdemerson.com`)
+- **Author:** Drew Danner
 - **Status:** Initial build, verified locally end-to-end. Not yet deployed to
-  Azure (pending Andersen IT prerequisites — see [Deployment](#deployment)).
+  Azure (pending Andersen Consulting IT prerequisites; see [Deployment](#deployment)).
 
 ---
 
@@ -38,21 +38,21 @@ GitHub OIDC federated credentials.
 
 ## Features
 
-- **Weekly allocation grid** — rows = people, columns = weeks; each cell stacks a
+- **Weekly allocation grid**: rows = people, columns = weeks; each cell stacks a
   person's projects for that week and is colour-coded by total utilization
   (green < 80 %, amber 80–100 %, red > 100 %). Click a cell to edit per-project
   percentages inline.
-- **Validation** — a person's allocations for a week may not exceed 100 %; the UI
+- **Validation**: a person's allocations for a week may not exceed 100 %; the UI
   and API both warn at ≥ 80 % and reject > 100 %.
-- **People & Projects management** — full CRUD for editors; people are
+- **People & Projects management**: full CRUD for editors; people are
   auto-provisioned from Entra on first sign-in.
-- **Leadership dashboards** — capacity summary, utilization trend, per-project
+- **Leadership dashboards**: capacity summary, utilization trend, per-project
   rollups, and per-person drill-down.
-- **Audit log** — append-only history of every write (who/what/when), visible to
+- **Audit log**: append-only history of every write (who/what/when), visible to
   leadership.
-- **Real-time** — allocation changes broadcast over Azure SignalR to everyone
+- **Real-time**: allocation changes broadcast over Azure SignalR to everyone
   viewing the affected week.
-- **Role-based access** — `viewer` / `editor` / `leadership`, mapped from Entra
+- **Role-based access**: `viewer` / `editor` / `leadership`, mapped from Entra
   security groups.
 
 ## Architecture
@@ -86,12 +86,12 @@ security-group membership into application roles. See
 | Real-time client | `@microsoft/signalr` | 8 |
 | Backend | Azure Functions, .NET isolated worker | v4 / .NET 8 |
 | ORM | Entity Framework Core (code-first) | 8 |
-| Database | Azure SQL Database (serverless) | — |
-| Real-time service | Azure SignalR Service (Serverless mode) | — |
-| Hosting / Auth | Azure Static Web Apps (Standard) | — |
-| Observability | Application Insights + Log Analytics | — |
-| IaC | Bicep | — |
-| CI/CD | GitHub Actions (OIDC) | — |
+| Database | Azure SQL Database (serverless) | n/a |
+| Real-time service | Azure SignalR Service (Serverless mode) | n/a |
+| Hosting / Auth | Azure Static Web Apps (Standard) | n/a |
+| Observability | Application Insights + Log Analytics | n/a |
+| IaC | Bicep | n/a |
+| CI/CD | GitHub Actions (OIDC) | n/a |
 
 ## Repository layout
 
@@ -176,7 +176,7 @@ All routes are served under `/api`. Unless noted, all require authentication.
 | Method | Route | Roles | Purpose |
 | ------ | ----- | ----- | ------- |
 | GET | `/api/me` | any | Current user; auto-provisions a `Person` |
-| POST | `/api/GetRoles` | (SWA only) | `rolesSource` — groups → roles |
+| POST | `/api/GetRoles` | (SWA only) | `rolesSource`: groups to roles |
 | GET | `/api/people` | viewer+ | List people (`?includeInactive=true`) |
 | GET | `/api/people/{id}` | viewer+ | Get a person |
 | POST | `/api/people` | editor | Create a person |
@@ -240,7 +240,7 @@ deployed environment.
 | ------ | ------- | ------- |
 | `x-dev-oid` | `…0001` | Entra object ID to impersonate |
 | `x-dev-roles` | `editor,leadership` | Comma-separated roles |
-| `x-dev-email` | `dev.user@bdemerson.com` | Display name / email |
+| `x-dev-email` | `dev.user@andersenconsulting.com` | Display name / email |
 
 **Optional real-time locally:** run [Azurite](https://github.com/Azure/Azurite)
 and the [Azure SignalR emulator](https://learn.microsoft.com/azure/azure-signalr/signalr-howto-emulator),
@@ -252,7 +252,7 @@ Function App settings (`local.settings.json` locally, app settings in Azure):
 
 | Setting | Example / value | Notes |
 | ------- | --------------- | ----- |
-| `FUNCTIONS_WORKER_RUNTIME` | `dotnet-isolated` | — |
+| `FUNCTIONS_WORKER_RUNTIME` | `dotnet-isolated` | n/a |
 | `SqlConnectionString` | `Server=…;Authentication=Active Directory Managed Identity;…` | No secret; MI auth in Azure |
 | `AzureWebJobsStorage__accountName` | `st…` | Identity-based storage (Azure) |
 | `AzureSignalRConnectionString__serviceUri` | `https://…service.signalr.net` | Identity-based SignalR (Azure) |
@@ -312,7 +312,7 @@ either.
 ## Deployment
 
 Deployments are fully automated via GitHub Actions using **OIDC federated
-credentials** — there are no stored cloud secrets.
+credentials**: there are no stored cloud secrets.
 
 ### One-time setup
 
@@ -338,9 +338,9 @@ credentials** — there are no stored cloud secrets.
    | ---- | ----- |
    | `AZURE_REGION` | `eastus2` |
 
-3. **Bicep parameters** — fill in `infra/main.<env>.bicepparam`:
-   - `sqlAdminLogin` / `sqlAdminObjectId` — Entra user or group that owns SQL
-   - `groupViewer` / `groupEditor` / `groupLeadership` — security group object IDs
+3. **Bicep parameters**: fill in `infra/main.<env>.bicepparam`:
+   - `sqlAdminLogin` / `sqlAdminObjectId`: Entra user or group that owns SQL
+   - `groupViewer` / `groupEditor` / `groupLeadership`: security group object IDs
    - Prod: `privateEndpointSubnetId` + private DNS zone IDs from the
      Andersen-supplied VNet (`deployPrivateEndpoints = true`)
 
@@ -363,17 +363,17 @@ credentials** — there are no stored cloud secrets.
 
 ## Security
 
-- **No anonymous access** — every route requires an authenticated principal.
+- **No anonymous access**: every route requires an authenticated principal.
 - **Roles** come from Entra groups via `GetRoles`; they are never trusted from
   the client.
-- **Managed identity** — the Function App authenticates to SQL (Entra-only),
+- **Managed identity**: the Function App authenticates to SQL (Entra-only),
   SignalR, and Storage with its system-assigned identity. No connection-string
   secrets in code or config.
-- **Append-only audit** — no updates/deletes; stores only the actor's Entra OID,
+- **Append-only audit**: no updates/deletes; stores only the actor's Entra OID,
   never PII.
-- **Networking (prod)** — SQL, SignalR, Key Vault, and Storage are reachable only
+- **Networking (prod)**: SQL, SignalR, Key Vault, and Storage are reachable only
   through private endpoints in the Andersen-supplied VNet.
-- **Transport** — HTTPS-only, TLS 1.2 minimum; security response headers set in
+- **Transport**: HTTPS-only, TLS 1.2 minimum; security response headers set in
   `staticwebapp.config.json`.
 
 ## Accessibility

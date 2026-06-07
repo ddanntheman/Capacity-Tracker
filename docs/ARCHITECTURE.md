@@ -17,7 +17,7 @@ Browser ──► Azure Static Web Apps (Entra ID SSO, static React app)
 
 Static Web Apps serves the SPA and proxies `/api/*` to the linked Azure
 Functions app. Authentication is handled entirely by the Static Web Apps
-built-in Entra ID provider — there is no custom auth code. After sign-in, SWA
+built-in Entra ID provider; there is no custom auth code. After sign-in, SWA
 calls the `rolesSource` endpoint (`/api/GetRoles`) to translate the user's Entra
 security-group membership into application roles.
 
@@ -47,14 +47,14 @@ invalidates the relevant TanStack Query caches when an event arrives.
 
 ## Security
 
-- **No anonymous access** — all routes require an authenticated principal.
+- **No anonymous access**: all routes require an authenticated principal.
 - **Roles** are derived from Entra security groups (`GetRoles`), never trusted
   from the client.
-- **Managed identity** — the Function App's system-assigned identity authenticates
+- **Managed identity**: the Function App's system-assigned identity authenticates
   to SQL (Entra-only), SignalR, and Storage; no connection-string secrets.
 - **Audit log** is append-only (no updates or deletes) and stores only the Entra
   OID of the actor, never PII.
-- **Networking (prod)** — SQL, SignalR, Key Vault, and Storage are reachable only
+- **Networking (prod)**: SQL, SignalR, Key Vault, and Storage are reachable only
   through private endpoints in the Andersen-supplied VNet.
 
 ## Infrastructure modules

@@ -101,7 +101,7 @@ public class CurrentUserAccessor(IConfiguration config, ILogger<CurrentUserAcces
             : config["DEV_DEFAULT_ROLES"] ?? "editor,leadership";
         var email = req.Headers.TryGetValue("x-dev-email", out var e) && !string.IsNullOrWhiteSpace(e)
             ? e.ToString()
-            : "dev.user@bdemerson.com";
+            : "dev.user@andersenconsulting.com";
 
         return new ClientPrincipal
         {

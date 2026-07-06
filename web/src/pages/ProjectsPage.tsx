@@ -243,7 +243,7 @@ function ProjectDialog({ project }: { project?: Project }) {
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{project ? "Edit project" : "Add project"}</DialogTitle>
         </DialogHeader>

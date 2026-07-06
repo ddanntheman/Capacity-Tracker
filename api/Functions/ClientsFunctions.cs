@@ -27,15 +27,15 @@ public class ClientsFunctions(CapacityDbContext db, RequestAuthorizer auth, Audi
         // Clients may exist implicitly through projects before a client record is created.
         var projectClientNames = await db.Projects.AsNoTracking().Select(p => p.ClientName).Distinct().ToListAsync();
         var known = clients.Select(c => c.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var implicitClients = projectClientNames
-            .Where(n => !known.Contains(n))
-            .Select(n => new Client { ClientId = Guid.NewGuid(), Name = n });
-        var missing = implicitClients.ToList();
+        var missing = projectClientNames.Where(n => !known.Contains(n)).ToList();
         if (missing.Count > 0)
         {
-            db.Clients.AddRange(missing);
-            await db.SaveChangesAsync();
-            clients = [.. clients.Concat(missing).OrderBy(c => c.Name)];
+            foreach (var name in missing)
+            {
+                await InsertClientIfMissing(db, name);
+            }
+
+            clients = await db.Clients.AsNoTracking().OrderBy(c => c.Name).ToListAsync();
         }
 
         return new OkObjectResult(clients.Select(ClientDto.From).ToList());
@@ -98,7 +98,12 @@ public class ClientsFunctions(CapacityDbContext db, RequestAuthorizer auth, Audi
             {
                 return new ConflictObjectResult(new { error = "A client with that name already exists." });
             }
+        }
 
+        await using var tx = await db.Database.BeginTransactionAsync();
+
+        if (!string.Equals(client.Name, newName, StringComparison.Ordinal))
+        {
             // Keep projects linked to the renamed client.
             await db.Projects.Where(p => p.ClientName == client.Name)
                 .ExecuteUpdateAsync(s => s.SetProperty(p => p.ClientName, newName));
@@ -112,7 +117,16 @@ public class ClientsFunctions(CapacityDbContext db, RequestAuthorizer auth, Audi
 
         audit.RecordDiff(nameof(Client), id.ToString(), before, Snapshot(client), result.User!.Oid);
         await db.SaveChangesAsync();
+        await tx.CommitAsync();
         return new OkObjectResult(ClientDto.From(client));
+    }
+
+    /// <summary>Atomic insert-if-missing that tolerates concurrent inserts of the same client name.</summary>
+    internal static async Task InsertClientIfMissing(CapacityDbContext db, string name)
+    {
+        var id = Guid.NewGuid();
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO [Clients] ([ClientId], [Name]) SELECT {id}, {name} WHERE NOT EXISTS (SELECT 1 FROM [Clients] WHERE [Name] = {name})");
     }
 
     private static Dictionary<string, string?> Snapshot(Client c) => new()

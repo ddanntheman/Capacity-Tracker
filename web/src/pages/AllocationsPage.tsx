@@ -286,6 +286,12 @@ function EditAllocationsDialog({
             </SelectContent>
           </Select>
         </div>
+        {repeatWeeks > 0 && (
+          <p className="text-xs text-[var(--color-warn)]">
+            These hours will overwrite any existing allocations for these projects in the next {repeatWeeks} week
+            {repeatWeeks > 1 ? "s" : ""}.
+          </p>
+        )}
         {total > capacity && <p className="text-sm text-[var(--color-warn)]">Booked over {capacity}h capacity.</p>}
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>

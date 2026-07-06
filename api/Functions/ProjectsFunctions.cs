@@ -146,13 +146,7 @@ public class ProjectsFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
         return new OkObjectResult(ProjectDto.From(project, result.User!.HasRole(AppRoles.Leadership)));
     }
 
-    private async Task EnsureClient(string name)
-    {
-        if (!await db.Clients.AnyAsync(c => c.Name == name))
-        {
-            db.Clients.Add(new Client { ClientId = Guid.NewGuid(), Name = name });
-        }
-    }
+    private Task EnsureClient(string name) => ClientsFunctions.InsertClientIfMissing(db, name);
 
     private static int? ClampProbability(int? value) => value is null ? null : Math.Clamp(value.Value, 0, 100);
 

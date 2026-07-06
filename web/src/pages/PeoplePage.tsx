@@ -12,7 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { InlineInput, InlineSelect } from "@/components/InlineEdit";
 
@@ -72,6 +72,7 @@ export default function PeoplePage() {
   const isLeadership = hasRole("leadership");
   const qc = useQueryClient();
   const [includeInactive, setIncludeInactive] = useState(false);
+  const [mergeSource, setMergeSource] = useState<Person | null>(null);
 
   const { data: people = [], isLoading } = useQuery({
     queryKey: ["people", includeInactive],
@@ -217,6 +218,11 @@ export default function PeoplePage() {
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <PersonDialog people={people} person={p} />
+                          {isLeadership && (
+                            <Button variant="outline" size="sm" onClick={() => setMergeSource(p)}>
+                              Merge
+                            </Button>
+                          )}
                           {p.isActive && (
                             <Button variant="outline" size="sm" onClick={() => deactivate.mutate(p.personId)}>
                               Deactivate
@@ -239,7 +245,81 @@ export default function PeoplePage() {
           )}
         </CardContent>
       </Card>
+
+      {mergeSource && (
+        <MergePersonDialog
+          source={mergeSource}
+          targets={people.filter((p) => p.personId !== mergeSource.personId)}
+          onClose={() => setMergeSource(null)}
+          onMerged={() => {
+            setMergeSource(null);
+            void qc.invalidateQueries({ queryKey: ["people"] });
+            void qc.invalidateQueries({ queryKey: ["person"] });
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function MergePersonDialog({
+  source,
+  targets,
+  onClose,
+  onMerged,
+}: {
+  source: Person;
+  targets: Person[];
+  onClose: () => void;
+  onMerged: () => void;
+}) {
+  const [targetId, setTargetId] = useState("");
+
+  const merge = useMutation({
+    mutationFn: () => api.mergePerson(source.personId, targetId),
+    onSuccess: () => {
+      toast.success("People merged");
+      onMerged();
+    },
+    onError: () => toast.error("Failed to merge people"),
+  });
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Merge “{source.displayName}”</DialogTitle>
+          <DialogDescription>
+            All of {source.displayName}'s allocations and actuals move to the person you pick, their profile details
+            fill in any blanks, and this record is deleted. Use this to combine a duplicate sign-in account with the
+            person's real record. This cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-1.5">
+          <Label>Merge into</Label>
+          <Select value={targetId} onValueChange={setTargetId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select person to keep" />
+            </SelectTrigger>
+            <SelectContent>
+              {targets.map((t) => (
+                <SelectItem key={t.personId} value={t.personId}>
+                  {t.displayName} ({t.email})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={() => merge.mutate()} disabled={!targetId || merge.isPending}>
+            {merge.isPending ? "Merging…" : "Merge"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

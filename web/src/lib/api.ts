@@ -54,6 +54,8 @@ export const api = {
   updatePerson: (id: string, body: Omit<Person, "personId">) =>
     request<Person>(`/people/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deactivatePerson: (id: string) => request<Person>(`/people/${id}/deactivate`, { method: "POST" }),
+  mergePerson: (id: string, targetPersonId: string) =>
+    request<Person>(`/people/${id}/merge`, { method: "POST", body: JSON.stringify({ targetPersonId }) }),
 
   listProjects: (pickerOnly = false) =>
     request<Project[]>(`/projects${pickerOnly ? "?picker=true" : ""}`),

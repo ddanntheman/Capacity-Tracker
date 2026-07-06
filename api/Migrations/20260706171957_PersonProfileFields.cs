@@ -86,7 +86,7 @@ public partial class PersonProfileFields : Migration
             table: "People",
             type: "int",
             nullable: false,
-            defaultValue: 0);
+            defaultValue: 40);
     }
 
     /// <inheritdoc />

@@ -138,6 +138,16 @@ public record ClientDto(Guid ClientId, string Name, string? Industry, string? Re
 
 public record UpsertClientRequest(string Name, string? Industry, string? RelationshipPartner, string? Notes);
 
+// Practices
+public record PracticeDto(Guid PracticeId, string Name, Guid? LeadId, int? DefaultUtilizationTarget, bool IsArchived, int Headcount)
+{
+    public static PracticeDto From(Practice p, int headcount) => new(p.PracticeId, p.Name, p.LeadId, p.DefaultUtilizationTarget, p.IsArchived, headcount);
+}
+
+public record UpsertPracticeRequest(string Name, Guid? LeadId, int? DefaultUtilizationTarget, bool? IsArchived);
+
+public record MergePracticeRequest(Guid TargetPracticeId);
+
 // Actuals
 public record ActualHoursDto(Guid ActualHoursId, Guid PersonId, DateOnly Month, decimal ChargeableHours)
 {

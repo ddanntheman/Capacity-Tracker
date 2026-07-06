@@ -85,7 +85,7 @@ public class ClientsFunctions(CapacityDbContext db, RequestAuthorizer auth, Audi
             return new BadRequestObjectResult(new { error = "Name is required." });
         }
 
-        var client = await db.Clients.FirstOrDefaultAsync(c => c.ClientId == id);
+        var client = await db.Clients.AsNoTracking().FirstOrDefaultAsync(c => c.ClientId == id);
         if (client is null)
         {
             return new NotFoundResult();
@@ -100,24 +100,32 @@ public class ClientsFunctions(CapacityDbContext db, RequestAuthorizer auth, Audi
             }
         }
 
-        await using var tx = await db.Database.BeginTransactionAsync();
-
-        if (!string.Equals(client.Name, newName, StringComparison.Ordinal))
+        var strategy = db.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
         {
-            // Keep projects linked to the renamed client.
-            await db.Projects.Where(p => p.ClientName == client.Name)
-                .ExecuteUpdateAsync(s => s.SetProperty(p => p.ClientName, newName));
-        }
+            // Reset tracked state and re-fetch so each retry attempt starts from the persisted row.
+            db.ChangeTracker.Clear();
+            await using var tx = await db.Database.BeginTransactionAsync();
 
-        var before = Snapshot(client);
-        client.Name = newName;
-        client.Industry = body.Industry?.Trim();
-        client.RelationshipPartner = body.RelationshipPartner?.Trim();
-        client.Notes = body.Notes?.Trim();
+            var tracked = await db.Clients.FirstAsync(c => c.ClientId == id);
+            if (!string.Equals(tracked.Name, newName, StringComparison.Ordinal))
+            {
+                // Keep projects linked to the renamed client.
+                await db.Projects.Where(p => p.ClientName == tracked.Name)
+                    .ExecuteUpdateAsync(s => s.SetProperty(p => p.ClientName, newName));
+            }
 
-        audit.RecordDiff(nameof(Client), id.ToString(), before, Snapshot(client), result.User!.Oid);
-        await db.SaveChangesAsync();
-        await tx.CommitAsync();
+            var before = Snapshot(tracked);
+            tracked.Name = newName;
+            tracked.Industry = body.Industry?.Trim();
+            tracked.RelationshipPartner = body.RelationshipPartner?.Trim();
+            tracked.Notes = body.Notes?.Trim();
+
+            audit.RecordDiff(nameof(Client), id.ToString(), before, Snapshot(tracked), result.User!.Oid);
+            await db.SaveChangesAsync();
+            await tx.CommitAsync();
+            client = tracked;
+        });
         return new OkObjectResult(ClientDto.From(client));
     }
 

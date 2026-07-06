@@ -11,6 +11,7 @@ public class CapacityDbContext(DbContextOptions<CapacityDbContext> options) : Db
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<Client> Clients => Set<Client>();
     public DbSet<ActualHours> Actuals => Set<ActualHours>();
+    public DbSet<Practice> Practices => Set<Practice>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -58,6 +59,17 @@ public class CapacityDbContext(DbContextOptions<CapacityDbContext> options) : Db
             e.Property(c => c.RelationshipPartner).HasMaxLength(256);
             e.Property(c => c.Notes).HasMaxLength(4000);
             e.HasIndex(c => c.Name).IsUnique();
+        });
+
+        b.Entity<Practice>(e =>
+        {
+            e.HasKey(p => p.PracticeId);
+            e.Property(p => p.Name).HasMaxLength(128).IsRequired();
+            e.HasIndex(p => p.Name).IsUnique();
+            e.HasOne(p => p.Lead)
+                .WithMany()
+                .HasForeignKey(p => p.LeadId)
+                .OnDelete(DeleteBehavior.NoAction);
         });
 
         b.Entity<ActualHours>(e =>

@@ -86,10 +86,10 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Utilization" value={`${summary.data?.utilizationRate ?? 0}%`} description="Allocated ÷ available" onClick={() => setStatDrill("utilization")} />
-        <StatCard title="Allocated hours" value={`${summary.data?.allocatedHours ?? 0}`} description={`of ${summary.data?.availableHours ?? 0} available`} onClick={() => setStatDrill("allocated")} />
-        <StatCard title="People" value={`${summary.data?.peopleCount ?? 0}`} description={`${summary.data?.fullyAllocated ?? 0} fully allocated`} onClick={() => setStatDrill("people")} />
-        <StatCard title="Over-allocated" value={`${summary.data?.overAllocated ?? 0}`} description={`${summary.data?.underutilized ?? 0} underutilized`} onClick={() => setStatDrill("overAllocated")} />
+        <StatCard loading={summary.isLoading} title="Utilization" value={`${summary.data?.utilizationRate ?? 0}%`} description="Allocated ÷ available" onClick={() => setStatDrill("utilization")} />
+        <StatCard loading={summary.isLoading} title="Allocated hours" value={`${summary.data?.allocatedHours ?? 0}`} description={`of ${summary.data?.availableHours ?? 0} available`} onClick={() => setStatDrill("allocated")} />
+        <StatCard loading={summary.isLoading} title="People" value={`${summary.data?.peopleCount ?? 0}`} description={`${summary.data?.fullyAllocated ?? 0} fully allocated`} onClick={() => setStatDrill("people")} />
+        <StatCard loading={summary.isLoading} title="Over-allocated" value={`${summary.data?.overAllocated ?? 0}`} description={`${summary.data?.underutilized ?? 0} underutilized`} onClick={() => setStatDrill("overAllocated")} />
       </div>
 
       {alerts.length > 0 && (
@@ -103,9 +103,11 @@ export default function DashboardPage() {
           <CardContent>
             <ul className="space-y-2 text-sm">
               {alerts.map((a) => (
-                <li key={a.key} className="flex items-center gap-2">
-                  <Badge variant={a.severity === "over" ? "over" : "warn"}>{a.severity === "over" ? "Overbooked" : "Review"}</Badge>
-                  {a.text}
+                <li key={a.key} className="flex items-start gap-3">
+                  <Badge variant={a.severity === "over" ? "over" : "warn"} className="shrink-0">
+                    {a.severity === "over" ? "Overbooked" : "Review"}
+                  </Badge>
+                  <span>{a.text}</span>
                 </li>
               ))}
             </ul>
@@ -236,12 +238,16 @@ export default function DashboardPage() {
   );
 }
 
-function StatCard({ title, value, description, onClick }: { title: string; value: string; description: string; onClick: () => void }) {
+function StatCard({ title, value, description, onClick, loading }: { title: string; value: string; description: string; onClick: () => void; loading?: boolean }) {
   return (
     <Card className="cursor-pointer transition-colors hover:bg-[var(--color-accent)]" onClick={onClick}>
       <CardHeader className="pb-2">
         <CardDescription>{title}</CardDescription>
-        <CardTitle className="text-3xl">{value}</CardTitle>
+        {loading ? (
+          <div className="h-9 w-16 animate-pulse rounded-md bg-[var(--color-accent)]" />
+        ) : (
+          <CardTitle className="text-3xl">{value}</CardTitle>
+        )}
       </CardHeader>
       <CardContent>
         <p className="text-xs text-[var(--color-muted-foreground)]">{description}</p>

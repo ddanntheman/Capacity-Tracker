@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuth } from "@/auth";
@@ -28,6 +29,9 @@ export default function AllocationsPage() {
   const viewerOnly = !canEdit && !hasRole("leadership");
   const qc = useQueryClient();
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const focusPersonId = searchParams.get("person");
+
   const [weekStart, setWeekStart] = useState(currentWeekStart());
   const [weeks, setWeeks] = useState(6);
   const visibleWeeks = useMemo(() => weekRange(weekStart, weeks), [weekStart, weeks]);
@@ -46,9 +50,13 @@ export default function AllocationsPage() {
   });
 
   const people = useMemo(() => {
-    const all = peopleQuery.data ?? [];
-    return viewerOnly ? all.filter((p) => p.personId === me?.oid) : all;
-  }, [peopleQuery.data, viewerOnly, me?.oid]);
+    let all = peopleQuery.data ?? [];
+    if (viewerOnly) all = all.filter((p) => p.personId === me?.oid);
+    if (focusPersonId) all = all.filter((p) => p.personId === focusPersonId);
+    return all;
+  }, [peopleQuery.data, viewerOnly, me?.oid, focusPersonId]);
+
+  const focusPerson = focusPersonId ? peopleQuery.data?.find((p) => p.personId === focusPersonId) : undefined;
 
   const projects = projectsQuery.data ?? [];
 
@@ -78,6 +86,17 @@ export default function AllocationsPage() {
           <p className="text-sm text-[var(--color-muted-foreground)]">
             Weekly grid. {canEdit ? "Click a cell to edit." : "Read-only view."}
           </p>
+          {focusPerson && (
+            <button
+              type="button"
+              onClick={() => setSearchParams({}, { replace: true })}
+              className="mt-1 inline-flex items-center gap-1 text-sm"
+            >
+              <Badge variant="secondary">
+                Staffing {focusPerson.displayName} <X className="size-3" />
+              </Badge>
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" aria-label="Previous weeks" onClick={() => setWeekStart(shiftWeeks(weekStart, -weeks))}>

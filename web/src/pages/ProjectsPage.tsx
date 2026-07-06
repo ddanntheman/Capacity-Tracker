@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { InlineInput, InlineSelect } from "@/components/InlineEdit";
 
 const statusVariant: Record<ProjectStatus, "ok" | "warn" | "secondary"> = {
   active: "ok",
@@ -31,6 +32,30 @@ export default function ProjectsPage() {
   const { data: clients = [] } = useQuery({ queryKey: ["clients"], queryFn: () => api.listClients() });
 
   const clientIdByName = useMemo(() => new Map(clients.map((c) => [c.name, c.clientId])), [clients]);
+
+  const inlineUpdate = useMutation({
+    mutationFn: ({ project, patch }: { project: Project; patch: Partial<Project> }) => {
+      const merged = { ...project, ...patch };
+      return api.updateProject(project.projectId, {
+        clientName: merged.clientName,
+        projectName: merged.projectName,
+        startDate: merged.startDate,
+        endDate: merged.endDate,
+        status: merged.status,
+        dealValue: merged.dealValue,
+        winProbability: merged.winProbability,
+        engagementType: merged.engagementType,
+        deliveryLeadId: merged.deliveryLeadId,
+        notes: merged.notes,
+      });
+    },
+    onSuccess: () => {
+      toast.success("Project updated");
+      void qc.invalidateQueries({ queryKey: ["projects"] });
+      void qc.invalidateQueries({ queryKey: ["clients"] });
+    },
+    onError: () => toast.error("Failed to update"),
+  });
 
   const archive = useMutation({
     mutationFn: (id: string) => api.archiveProject(id),
@@ -87,14 +112,56 @@ export default function ProjectsPage() {
                     <TableCell>{p.startDate}</TableCell>
                     <TableCell>{p.endDate ?? "—"}</TableCell>
                     <TableCell>
-                      <Badge variant={statusVariant[p.status]} className="capitalize">
-                        {p.status}
-                      </Badge>
+                      {canEdit ? (
+                        <InlineSelect
+                          value={p.status}
+                          display={p.status}
+                          className="capitalize"
+                          options={[
+                            { value: "active", label: "Active" },
+                            { value: "pipeline", label: "Pipeline" },
+                            { value: "closed", label: "Closed" },
+                          ]}
+                          onSave={(v) => inlineUpdate.mutate({ project: p, patch: { status: v as ProjectStatus } })}
+                        />
+                      ) : (
+                        <Badge variant={statusVariant[p.status]} className="capitalize">
+                          {p.status}
+                        </Badge>
+                      )}
                     </TableCell>
                     {isLeadership && (
-                      <TableCell className="text-right">{p.dealValue != null ? `$${p.dealValue.toLocaleString()}` : "—"}</TableCell>
+                      <TableCell className="text-right">
+                        <InlineInput
+                          type="number"
+                          min={0}
+                          value={p.dealValue != null ? String(p.dealValue) : ""}
+                          display={p.dealValue != null ? `$${p.dealValue.toLocaleString()}` : "—"}
+                          disabled={!canEdit}
+                          className="justify-end"
+                          inputClassName="text-right"
+                          onSave={(v) => inlineUpdate.mutate({ project: p, patch: { dealValue: v === "" ? null : Number(v) } })}
+                        />
+                      </TableCell>
                     )}
-                    <TableCell className="text-right">{p.winProbability != null ? `${p.winProbability}%` : "—"}</TableCell>
+                    <TableCell className="text-right">
+                      <InlineInput
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={p.winProbability != null ? String(p.winProbability) : ""}
+                        display={p.winProbability != null ? `${p.winProbability}%` : "—"}
+                        disabled={!canEdit}
+                        className="justify-end"
+                        inputClassName="text-right"
+                        onSave={(v) =>
+                          inlineUpdate.mutate({
+                            project: p,
+                            patch: { winProbability: v === "" ? null : Math.max(0, Math.min(100, Number(v))) },
+                          })
+                        }
+                      />
+                    </TableCell>
                     {canEdit && (
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">

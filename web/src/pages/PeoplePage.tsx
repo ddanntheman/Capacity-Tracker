@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { InlineInput, InlineSelect } from "@/components/InlineEdit";
 
 export const RANKS = [
   "Analyst",
@@ -42,15 +43,51 @@ export const DEFAULT_UTILIZATION_TARGETS: Record<string, number> = {
   Partner: 20,
 };
 
+/** Full update body for a person with a partial patch applied (the API replaces the whole record). */
+function personBody(p: Person, patch: Partial<Person>): Omit<Person, "personId"> {
+  const merged = { ...p, ...patch };
+  return {
+    displayName: merged.displayName,
+    email: merged.email,
+    jobTitle: merged.jobTitle,
+    managerId: merged.managerId,
+    rank: merged.rank,
+    practice: merged.practice,
+    location: merged.location,
+    phone: merged.phone,
+    startDate: merged.startDate,
+    costRate: merged.costRate,
+    billRate: merged.billRate,
+    utilizationTarget: merged.utilizationTarget,
+    weeklyCapacityHours: merged.weeklyCapacityHours,
+    skills: merged.skills,
+    notes: merged.notes,
+    isActive: merged.isActive,
+  };
+}
+
 export default function PeoplePage() {
   const { hasRole } = useAuth();
   const canEdit = hasRole("editor");
+  const isLeadership = hasRole("leadership");
   const qc = useQueryClient();
   const [includeInactive, setIncludeInactive] = useState(false);
 
   const { data: people = [], isLoading } = useQuery({
     queryKey: ["people", includeInactive],
     queryFn: () => api.listPeople(includeInactive),
+  });
+  const { data: practices = [] } = useQuery({ queryKey: ["practices"], queryFn: () => api.listPractices() });
+
+  const inlineUpdate = useMutation({
+    mutationFn: ({ person, patch }: { person: Person; patch: Partial<Person> }) =>
+      api.updatePerson(person.personId, personBody(person, patch)),
+    onSuccess: () => {
+      toast.success("Person updated");
+      void qc.invalidateQueries({ queryKey: ["people"] });
+      void qc.invalidateQueries({ queryKey: ["person"] });
+    },
+    onError: () => toast.error("Failed to update"),
   });
 
   const deactivate = useMutation({
@@ -90,6 +127,9 @@ export default function PeoplePage() {
                   <TableHead>Email</TableHead>
                   <TableHead>Rank</TableHead>
                   <TableHead>Practice</TableHead>
+                  <TableHead className="text-right">Target %</TableHead>
+                  {isLeadership && <TableHead className="text-right">Cost $/hr</TableHead>}
+                  {isLeadership && <TableHead className="text-right">Bill $/hr</TableHead>}
                   <TableHead>Manager</TableHead>
                   <TableHead>Status</TableHead>
                   {canEdit && <TableHead className="text-right">Actions</TableHead>}
@@ -104,8 +144,71 @@ export default function PeoplePage() {
                       </Link>
                     </TableCell>
                     <TableCell>{p.email}</TableCell>
-                    <TableCell>{p.rank ?? p.jobTitle ?? "—"}</TableCell>
-                    <TableCell>{p.practice ?? "—"}</TableCell>
+                    <TableCell>
+                      <InlineSelect
+                        value={p.rank ?? ""}
+                        display={p.rank ?? p.jobTitle ?? "—"}
+                        disabled={!canEdit}
+                        allowNone
+                        noneLabel="No rank"
+                        options={RANKS.map((r) => ({ value: r, label: r }))}
+                        onSave={(v) => inlineUpdate.mutate({ person: p, patch: { rank: v || null } })}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <InlineSelect
+                        value={p.practice ?? ""}
+                        display={p.practice ?? "—"}
+                        disabled={!canEdit}
+                        allowNone
+                        noneLabel="No practice"
+                        options={practices.filter((pr) => !pr.isArchived || pr.name === p.practice).map((pr) => ({ value: pr.name, label: pr.name }))}
+                        onSave={(v) => inlineUpdate.mutate({ person: p, patch: { practice: v || null } })}
+                      />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <InlineInput
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={p.utilizationTarget != null ? String(p.utilizationTarget) : ""}
+                        display={p.utilizationTarget != null ? `${p.utilizationTarget}%` : "—"}
+                        disabled={!canEdit}
+                        className="justify-end"
+                        inputClassName="text-right"
+                        onSave={(v) => inlineUpdate.mutate({ person: p, patch: { utilizationTarget: v === "" ? null : Number(v) } })}
+                      />
+                    </TableCell>
+                    {isLeadership && (
+                      <TableCell className="text-right">
+                        <InlineInput
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={p.costRate != null ? String(p.costRate) : ""}
+                          display={p.costRate != null ? `$${p.costRate.toLocaleString()}` : "—"}
+                          disabled={!canEdit}
+                          className="justify-end"
+                          inputClassName="text-right"
+                          onSave={(v) => inlineUpdate.mutate({ person: p, patch: { costRate: v === "" ? null : Number(v) } })}
+                        />
+                      </TableCell>
+                    )}
+                    {isLeadership && (
+                      <TableCell className="text-right">
+                        <InlineInput
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={p.billRate != null ? String(p.billRate) : ""}
+                          display={p.billRate != null ? `$${p.billRate.toLocaleString()}` : "—"}
+                          disabled={!canEdit}
+                          className="justify-end"
+                          inputClassName="text-right"
+                          onSave={(v) => inlineUpdate.mutate({ person: p, patch: { billRate: v === "" ? null : Number(v) } })}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell>{people.find((m) => m.personId === p.managerId)?.displayName ?? "—"}</TableCell>
                     <TableCell>
                       {p.isActive ? <Badge variant="ok">Active</Badge> : <Badge variant="secondary">Inactive</Badge>}
@@ -126,7 +229,7 @@ export default function PeoplePage() {
                 ))}
                 {people.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={canEdit ? 7 : 6} className="text-center text-[var(--color-muted-foreground)]">
+                    <TableCell colSpan={7 + (isLeadership ? 2 : 0) + (canEdit ? 1 : 0)} className="text-center text-[var(--color-muted-foreground)]">
                       No people yet.
                     </TableCell>
                   </TableRow>
@@ -145,6 +248,7 @@ export function PersonDialog({ people, person }: { people: Person[]; person?: Pe
   const isLeadership = hasRole("leadership");
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const { data: practiceList = [] } = useQuery({ queryKey: ["practices"], queryFn: () => api.listPractices(), enabled: open });
   const [displayName, setDisplayName] = useState(person?.displayName ?? "");
   const [email, setEmail] = useState(person?.email ?? "");
   const [jobTitle, setJobTitle] = useState(person?.jobTitle ?? "");
@@ -251,8 +355,32 @@ export function PersonDialog({ people, person }: { people: Person[]; person?: Pe
             <Input id="title" value={jobTitle ?? ""} onChange={(e) => setJobTitle(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="practice">Practice</Label>
-            <Input id="practice" value={practice} onChange={(e) => setPractice(e.target.value)} />
+            <Label>Practice</Label>
+            <Select
+              value={practice || "none"}
+              onValueChange={(v) => {
+                const next = v === "none" ? "" : v;
+                setPractice(next);
+                const defaultTarget = practiceList.find((pr) => pr.name === next)?.defaultUtilizationTarget;
+                if (next && utilizationTarget === "" && defaultTarget != null) {
+                  setUtilizationTarget(String(defaultTarget));
+                }
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="No practice" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No practice</SelectItem>
+                {practiceList
+                  .filter((pr) => !pr.isArchived || pr.name === practice)
+                  .map((pr) => (
+                    <SelectItem key={pr.practiceId} value={pr.name}>
+                      {pr.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1.5">
             <Label>Manager</Label>

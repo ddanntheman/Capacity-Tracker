@@ -16,6 +16,7 @@ import ClientDetailPage from "@/pages/ClientDetailPage";
 import ExecutiveSummaryPage from "@/pages/ExecutiveSummaryPage";
 import ActualsPage from "@/pages/ActualsPage";
 import BenchPage from "@/pages/BenchPage";
+import PracticesPage from "@/pages/PracticesPage";
 import RevenuePage from "@/pages/RevenuePage";
 
 export default function App() {
@@ -136,6 +137,14 @@ export default function App() {
           element={
             <RequireRole roles={["leadership"]}>
               <RevenuePage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/practices"
+          element={
+            <RequireRole roles={["viewer", "editor", "leadership"]}>
+              <PracticesPage />
             </RequireRole>
           }
         />

@@ -8,6 +8,7 @@ import type {
   DashboardSummary,
   Me,
   Person,
+  Practice,
   Project,
   ProjectStatus,
   UtilizationResponse,
@@ -66,6 +67,16 @@ export const api = {
   getClient: (id: string) => request<ClientDetail>(`/clients/${id}`),
   updateClient: (id: string, body: Omit<Client, "clientId">) =>
     request<Client>(`/clients/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+
+  listPractices: () => request<Practice[]>("/practices"),
+  createPractice: (body: { name: string; leadId: string | null; defaultUtilizationTarget: number | null }) =>
+    request<Practice>("/practices", { method: "POST", body: JSON.stringify(body) }),
+  updatePractice: (
+    id: string,
+    body: { name: string; leadId: string | null; defaultUtilizationTarget: number | null; isArchived?: boolean },
+  ) => request<Practice>(`/practices/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  mergePractice: (id: string, targetPracticeId: string) =>
+    request<Practice>(`/practices/${id}/merge`, { method: "POST", body: JSON.stringify({ targetPracticeId }) }),
 
   listActuals: (year: number) => request<ActualHours[]>(`/actuals?year=${year}`),
   upsertActual: (body: { personId: string; month: string; chargeableHours: number }) =>

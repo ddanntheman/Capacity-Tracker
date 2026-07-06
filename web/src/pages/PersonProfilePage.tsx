@@ -69,11 +69,14 @@ export default function PersonProfilePage() {
   const today = currentWeekStart();
   const byWeek = new Map<string, number>();
   for (const a of allocations) {
-    byWeek.set(a.weekStart, (byWeek.get(a.weekStart) ?? 0) + a.percentAllocated);
+    byWeek.set(a.weekStart, (byWeek.get(a.weekStart) ?? 0) + a.hours);
   }
+  const capacity = person.weeklyCapacityHours || 40;
   const pastWeeks = [...byWeek.entries()].filter(([w]) => w <= today);
   const actualUtilization =
-    pastWeeks.length > 0 ? Math.round(pastWeeks.reduce((sum, [, pct]) => sum + pct, 0) / pastWeeks.length) : null;
+    pastWeeks.length > 0
+      ? Math.round((pastWeeks.reduce((sum, [, hrs]) => sum + hrs, 0) / (pastWeeks.length * capacity)) * 100)
+      : null;
   const currentWeekTotal = byWeek.get(today) ?? 0;
 
   const currentAllocations = allocations
@@ -156,7 +159,7 @@ export default function PersonProfilePage() {
               label={`Actual (last ${LOOKBACK_WEEKS} wks)`}
               value={actualUtilization != null ? `${actualUtilization}%` : "—"}
             />
-            <ProfileRow label="This week" value={`${currentWeekTotal}%`} />
+            <ProfileRow label="This week" value={`${currentWeekTotal} hrs`} />
             <ProfileRow label="Weekly capacity" value={`${person.weeklyCapacityHours} hrs`} />
             {person.utilizationTarget != null && actualUtilization != null && (
               <div className="pt-1">
@@ -202,7 +205,7 @@ export default function PersonProfilePage() {
             <TableBody>
               {[...byWeek.entries()]
                 .sort(([a], [b]) => a.localeCompare(b))
-                .map(([week, pct]) => (
+                .map(([week, hrs]) => (
                   <TableRow key={week}>
                     <TableCell>
                       {weekLabel(week)}
@@ -212,14 +215,14 @@ export default function PersonProfilePage() {
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell>{pct}%</TableCell>
+                    <TableCell>{hrs}h</TableCell>
                     <TableCell>
-                      {pct > 100 ? (
-                        <Badge variant="over">Over-allocated</Badge>
-                      ) : pct === 100 ? (
+                      {hrs > capacity ? (
+                        <Badge variant="over">Over-booked</Badge>
+                      ) : hrs === capacity ? (
                         <Badge variant="ok">Full</Badge>
                       ) : (
-                        <Badge variant="secondary">{100 - pct}% free</Badge>
+                        <Badge variant="secondary">{capacity - hrs}h free</Badge>
                       )}
                     </TableCell>
                   </TableRow>
@@ -255,7 +258,7 @@ export default function PersonProfilePage() {
                   <TableRow key={a.allocationId}>
                     <TableCell>{a.project?.clientName ?? "—"}</TableCell>
                     <TableCell>{a.project?.projectName ?? "Unknown project"}</TableCell>
-                    <TableCell>{a.percentAllocated}%</TableCell>
+                    <TableCell>{a.hours}h</TableCell>
                   </TableRow>
                 ))}
                 {currentAllocations.length === 0 && (

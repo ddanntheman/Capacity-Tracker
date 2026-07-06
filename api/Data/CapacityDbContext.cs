@@ -44,6 +44,7 @@ public class CapacityDbContext(DbContextOptions<CapacityDbContext> options) : Db
         b.Entity<Allocation>(e =>
         {
             e.HasKey(a => a.AllocationId);
+            e.Property(a => a.Hours).HasPrecision(6, 2);
             e.HasOne(a => a.Person)
                 .WithMany(p => p.Allocations)
                 .HasForeignKey(a => a.PersonId)

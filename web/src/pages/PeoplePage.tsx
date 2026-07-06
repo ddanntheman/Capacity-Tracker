@@ -17,6 +17,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 export const RANKS = [
   "Analyst",
+  "Associate",
+  "Senior Associate",
   "Consultant",
   "Senior Consultant",
   "Manager",
@@ -25,6 +27,20 @@ export const RANKS = [
   "Managing Director",
   "Partner",
 ];
+
+/** Default billable utilization targets (%) by rank. */
+export const DEFAULT_UTILIZATION_TARGETS: Record<string, number> = {
+  Analyst: 85,
+  Associate: 85,
+  "Senior Associate": 85,
+  Consultant: 85,
+  "Senior Consultant": 80,
+  Manager: 80,
+  "Senior Manager": 65,
+  Director: 40,
+  "Managing Director": 20,
+  Partner: 20,
+};
 
 export default function PeoplePage() {
   const { hasRole } = useAuth();
@@ -207,7 +223,16 @@ export function PersonDialog({ people, person }: { people: Person[]; person?: Pe
           </div>
           <div className="space-y-1.5">
             <Label>Rank</Label>
-            <Select value={rank || "none"} onValueChange={(v) => setRank(v === "none" ? "" : v)}>
+            <Select
+              value={rank || "none"}
+              onValueChange={(v) => {
+                const next = v === "none" ? "" : v;
+                setRank(next);
+                if (next && utilizationTarget === "" && DEFAULT_UTILIZATION_TARGETS[next] != null) {
+                  setUtilizationTarget(String(DEFAULT_UTILIZATION_TARGETS[next]));
+                }
+              }}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="No rank" />
               </SelectTrigger>

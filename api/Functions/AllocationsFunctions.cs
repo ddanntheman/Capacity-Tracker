@@ -14,8 +14,7 @@ namespace CapacityTracker.Api.Functions;
 
 public class AllocationsFunctions(CapacityDbContext db, RequestAuthorizer auth, AuditService audit)
 {
-    private const int WarnThreshold = 80;
-    private const int MaxPercent = 100;
+    private const decimal MaxWeeklyHours = 168;
 
     /// <summary>
     /// Returns allocations across a window of weeks. Viewers see only their own
@@ -73,18 +72,18 @@ public class AllocationsFunctions(CapacityDbContext db, RequestAuthorizer auth, 
             return Http(new BadRequestResult());
         }
 
-        if (body.PercentAllocated is < 0 or > MaxPercent)
+        if (body.Hours is < 0 or > MaxWeeklyHours)
         {
-            return Http(new BadRequestObjectResult(new { error = $"PercentAllocated must be between 0 and {MaxPercent}." }));
+            return Http(new BadRequestObjectResult(new { error = $"Hours must be between 0 and {MaxWeeklyHours}." }));
         }
 
         // Normalize to the Monday of the week so the (PersonId, ProjectId, WeekStart)
         // grain holds regardless of which weekday the caller supplies.
         var weekStart = WeekHelper.WeekStartOf(body.WeekStart);
 
-        var personExists = await db.People.AnyAsync(p => p.PersonId == body.PersonId && p.IsActive);
+        var person = await db.People.AsNoTracking().FirstOrDefaultAsync(p => p.PersonId == body.PersonId && p.IsActive);
         var projectOpen = await db.Projects.AnyAsync(p => p.ProjectId == body.ProjectId && p.Status != ProjectStatus.Closed);
-        if (!personExists)
+        if (person is null)
         {
             return Http(new BadRequestObjectResult(new { error = "Unknown or inactive person." }));
         }
@@ -97,8 +96,8 @@ public class AllocationsFunctions(CapacityDbContext db, RequestAuthorizer auth, 
         var existing = await db.Allocations.FirstOrDefaultAsync(a =>
             a.PersonId == body.PersonId && a.ProjectId == body.ProjectId && a.WeekStart == weekStart);
 
-        // A zero percent upsert removes the row.
-        if (body.PercentAllocated == 0)
+        // A zero-hour upsert removes the row.
+        if (body.Hours == 0)
         {
             if (existing is null)
             {
@@ -106,7 +105,7 @@ public class AllocationsFunctions(CapacityDbContext db, RequestAuthorizer auth, 
             }
 
             db.Allocations.Remove(existing);
-            audit.Record(nameof(Allocation), existing.AllocationId.ToString(), nameof(Allocation.PercentAllocated), existing.PercentAllocated.ToString(), "0 (removed)", result.User!.Oid);
+            audit.Record(nameof(Allocation), existing.AllocationId.ToString(), nameof(Allocation.Hours), existing.Hours.ToString(), "0 (removed)", result.User!.Oid);
             await db.SaveChangesAsync();
             return Broadcast("removed", existing);
         }
@@ -114,18 +113,9 @@ public class AllocationsFunctions(CapacityDbContext db, RequestAuthorizer auth, 
         var otherTotal = await db.Allocations
             .Where(a => a.PersonId == body.PersonId && a.WeekStart == weekStart
                 && (existing == null || a.AllocationId != existing.AllocationId))
-            .SumAsync(a => (int?)a.PercentAllocated) ?? 0;
+            .SumAsync(a => (decimal?)a.Hours) ?? 0;
 
-        var newTotal = otherTotal + body.PercentAllocated;
-        if (newTotal > MaxPercent)
-        {
-            return Http(new ConflictObjectResult(new
-            {
-                error = "over-allocated",
-                message = $"Total allocation for the week would be {newTotal}%, which exceeds {MaxPercent}%.",
-                weekTotal = newTotal,
-            }));
-        }
+        var newTotal = otherTotal + body.Hours;
 
         Allocation allocation;
         if (existing is null)
@@ -136,20 +126,20 @@ public class AllocationsFunctions(CapacityDbContext db, RequestAuthorizer auth, 
                 PersonId = body.PersonId,
                 ProjectId = body.ProjectId,
                 WeekStart = weekStart,
-                PercentAllocated = body.PercentAllocated,
+                Hours = body.Hours,
             };
             db.Allocations.Add(allocation);
-            audit.Record(nameof(Allocation), allocation.AllocationId.ToString(), "created", null, body.PercentAllocated.ToString(), result.User!.Oid);
+            audit.Record(nameof(Allocation), allocation.AllocationId.ToString(), "created", null, body.Hours.ToString(), result.User!.Oid);
         }
         else
         {
             allocation = existing;
-            audit.Record(nameof(Allocation), allocation.AllocationId.ToString(), nameof(Allocation.PercentAllocated), allocation.PercentAllocated.ToString(), body.PercentAllocated.ToString(), result.User!.Oid);
-            allocation.PercentAllocated = body.PercentAllocated;
+            audit.Record(nameof(Allocation), allocation.AllocationId.ToString(), nameof(Allocation.Hours), allocation.Hours.ToString(), body.Hours.ToString(), result.User!.Oid);
+            allocation.Hours = body.Hours;
         }
 
         await db.SaveChangesAsync();
-        return Broadcast(existing is null ? "created" : "updated", allocation, newTotal);
+        return Broadcast(existing is null ? "created" : "updated", allocation, newTotal, person.WeeklyCapacityHours);
     }
 
     [Function("DeleteAllocation")]
@@ -169,14 +159,14 @@ public class AllocationsFunctions(CapacityDbContext db, RequestAuthorizer auth, 
         }
 
         db.Allocations.Remove(allocation);
-        audit.Record(nameof(Allocation), id.ToString(), nameof(Allocation.PercentAllocated), allocation.PercentAllocated.ToString(), "0 (removed)", result.User!.Oid);
+        audit.Record(nameof(Allocation), id.ToString(), nameof(Allocation.Hours), allocation.Hours.ToString(), "0 (removed)", result.User!.Oid);
         await db.SaveChangesAsync();
         return Broadcast("removed", allocation);
     }
 
-    private static AllocationWriteOutput Broadcast(string action, Allocation a, int? weekTotal = null)
+    private static AllocationWriteOutput Broadcast(string action, Allocation a, decimal? weekTotal = null, int? capacity = null)
     {
-        var payload = new AllocationChange(action, a.AllocationId, a.PersonId, a.ProjectId, a.WeekStart.ToString("yyyy-MM-dd"), a.PercentAllocated);
+        var payload = new AllocationChange(action, a.AllocationId, a.PersonId, a.ProjectId, a.WeekStart.ToString("yyyy-MM-dd"), a.Hours);
         return new AllocationWriteOutput
         {
             SignalRMessage = new SignalRMessageAction(Realtime.Realtime.AllocationChangedEvent, [payload])
@@ -188,7 +178,9 @@ public class AllocationsFunctions(CapacityDbContext db, RequestAuthorizer auth, 
                 allocation = AllocationDto.From(a),
                 action,
                 weekTotal,
-                warning = weekTotal is >= WarnThreshold and < MaxPercent ? $"Person is at {weekTotal}% for the week." : null,
+                warning = weekTotal is not null && capacity is not null && weekTotal > capacity
+                    ? $"Person is booked {weekTotal}h against a {capacity}h week."
+                    : null,
             }),
         };
     }

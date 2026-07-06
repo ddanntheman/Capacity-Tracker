@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { useAuth } from "@/auth";
 import { useAllocationRealtime } from "@/hooks/useRealtime";
 import { currentWeekStart, shiftWeeks, weekLabel, weekRange } from "@/lib/weeks";
@@ -15,13 +15,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-const WARN = 80;
-const MAX = 100;
-
-function totalVariant(total: number): "ok" | "warn" | "over" | "secondary" {
+function totalVariant(total: number, capacity: number): "ok" | "warn" | "over" | "secondary" {
   if (total === 0) return "secondary";
-  if (total > MAX) return "over";
-  if (total >= WARN) return "warn";
+  if (total > capacity) return "over";
+  if (total >= capacity * 0.8) return "warn";
   return "ok";
 }
 
@@ -127,7 +124,8 @@ export default function AllocationsPage() {
                     <td className="sticky left-0 z-10 bg-[var(--color-card)] p-2 font-medium">{person.displayName}</td>
                     {visibleWeeks.map((w) => {
                       const cell = index.get(person.personId)?.get(w) ?? [];
-                      const total = cell.reduce((s, a) => s + a.percentAllocated, 0);
+                      const total = cell.reduce((s, a) => s + a.hours, 0);
+                      const capacity = person.weeklyCapacityHours || 40;
                       return (
                         <td key={w} className="p-1 align-top">
                           <button
@@ -135,12 +133,12 @@ export default function AllocationsPage() {
                             disabled={!canEdit}
                             onClick={() => canEdit && setEditing({ person, week: w })}
                             className="flex w-full flex-col gap-1 rounded-md border p-2 text-left transition-colors enabled:hover:bg-[var(--color-accent)] disabled:cursor-default"
-                            aria-label={`${person.displayName}, week of ${w}, ${total}% allocated`}
+                            aria-label={`${person.displayName}, week of ${w}, ${total} hours booked`}
                           >
-                            <Badge variant={totalVariant(total)}>{total}%</Badge>
+                            <Badge variant={totalVariant(total, capacity)}>{total}h</Badge>
                             {cell.map((a) => (
                               <span key={a.allocationId} className="truncate text-xs text-[var(--color-muted-foreground)]">
-                                {projectName(a.projectId)}: {a.percentAllocated}%
+                                {projectName(a.projectId)}: {a.hours}h
                               </span>
                             ))}
                           </button>
@@ -160,9 +158,9 @@ export default function AllocationsPage() {
             </table>
           </div>
           <div className="mt-4 flex flex-wrap gap-4 text-xs text-[var(--color-muted-foreground)]">
-            <span className="flex items-center gap-1"><Badge variant="ok">≤79%</Badge> available</span>
+            <span className="flex items-center gap-1"><Badge variant="ok">&lt;80% of capacity</Badge> available</span>
             <span className="flex items-center gap-1"><Badge variant="warn">80–100%</Badge> near/at capacity</span>
-            <span className="flex items-center gap-1"><Badge variant="over">&gt;100%</Badge> over-allocated</span>
+            <span className="flex items-center gap-1"><Badge variant="over">&gt;capacity</Badge> over-booked</span>
           </div>
         </CardContent>
       </Card>
@@ -202,13 +200,14 @@ function EditAllocationsDialog({
   const initial = useMemo(() => {
     const m: Record<string, number> = {};
     for (const p of projects) {
-      m[p.projectId] = existing.find((a) => a.projectId === p.projectId)?.percentAllocated ?? 0;
+      m[p.projectId] = existing.find((a) => a.projectId === p.projectId)?.hours ?? 0;
     }
     return m;
   }, [projects, existing]);
 
   const [values, setValues] = useState<Record<string, number>>(initial);
   const total = Object.values(values).reduce((s, v) => s + (v || 0), 0);
+  const capacity = person.weeklyCapacityHours || 40;
 
   const save = useMutation({
     mutationFn: async () => {
@@ -218,7 +217,7 @@ function EditAllocationsDialog({
           personId: person.personId,
           projectId: p.projectId,
           weekStart: week,
-          percentAllocated: values[p.projectId] || 0,
+          hours: values[p.projectId] || 0,
         });
       }
     },
@@ -226,12 +225,8 @@ function EditAllocationsDialog({
       toast.success("Allocations saved");
       onSaved();
     },
-    onError: (e) => {
-      if (e instanceof ApiError && e.status === 409) {
-        toast.error("Over-allocated: weekly total exceeds 100%.");
-      } else {
-        toast.error("Failed to save allocations");
-      }
+    onError: () => {
+      toast.error("Failed to save allocations");
     },
   });
 
@@ -240,7 +235,7 @@ function EditAllocationsDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{person.displayName}</DialogTitle>
-          <DialogDescription>Week of {week}. Set the percentage per project (0 removes it).</DialogDescription>
+          <DialogDescription>Week of {week}. Set the hours per project (0 removes it).</DialogDescription>
         </DialogHeader>
         <div className="max-h-80 space-y-3 overflow-auto">
           {projects.length === 0 && (
@@ -255,26 +250,25 @@ function EditAllocationsDialog({
                 id={p.projectId}
                 type="number"
                 min={0}
-                max={100}
-                step={5}
+                max={168}
+                step={0.5}
                 value={values[p.projectId] ?? 0}
-                onChange={(e) => setValues((v) => ({ ...v, [p.projectId]: Math.max(0, Math.min(100, Number(e.target.value))) }))}
+                onChange={(e) => setValues((v) => ({ ...v, [p.projectId]: Math.max(0, Math.min(168, Number(e.target.value))) }))}
                 className="w-24"
               />
             </div>
           ))}
         </div>
         <div className="flex items-center justify-between border-t pt-3">
-          <span className="text-sm">Weekly total</span>
-          <Badge variant={totalVariant(total)}>{total}%</Badge>
+          <span className="text-sm">Weekly total (capacity {capacity}h)</span>
+          <Badge variant={totalVariant(total, capacity)}>{total}h</Badge>
         </div>
-        {total > MAX && <p className="text-sm text-[var(--color-over)]">Total exceeds 100%. Reduce before saving.</p>}
-        {total >= WARN && total <= MAX && <p className="text-sm text-[var(--color-warn)]">At or near capacity ({total}%).</p>}
+        {total > capacity && <p className="text-sm text-[var(--color-warn)]">Booked over {capacity}h capacity.</p>}
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={() => save.mutate()} disabled={total > MAX || save.isPending}>
+          <Button onClick={() => save.mutate()} disabled={save.isPending}>
             {save.isPending ? "Saving…" : "Save"}
           </Button>
         </DialogFooter>

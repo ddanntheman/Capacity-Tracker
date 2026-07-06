@@ -63,7 +63,7 @@ export const api = {
     request<Allocation[]>(
       `/allocations?weekStart=${weekStart}&weeks=${weeks}${personId ? `&personId=${personId}` : ""}`,
     ),
-  upsertAllocation: (body: { personId: string; projectId: string; weekStart: string; percentAllocated: number }) =>
+  upsertAllocation: (body: { personId: string; projectId: string; weekStart: string; hours: number }) =>
     request<AllocationWriteResult>("/allocations", { method: "POST", body: JSON.stringify(body) }),
   deleteAllocation: (id: string) => request<AllocationWriteResult>(`/allocations/${id}`, { method: "DELETE" }),
 

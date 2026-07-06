@@ -5,7 +5,7 @@
     "identityProviders": {
       "azureActiveDirectory": {
         "registration": {
-          "openIdIssuer": "https://login.microsoftonline.com/396a5f5f-4bee-4dd0-aea6-809ef5dc4ac7/v2.0",
+          "openIdIssuer": "https://login.microsoftonline.com/f44ef0c2-9e0e-41ee-a9b8-6df585f60d31/v2.0",
           "clientIdSettingName": "ENTRA_APP_ID",
           "clientSecretSettingName": "ENTRA_APP_CLIENT_SECRET"
         }

@@ -79,13 +79,72 @@ public record UpdatePersonRequest(
     bool IsActive);
 
 // Projects
-public record ProjectDto(Guid ProjectId, string ClientName, string ProjectName, DateOnly StartDate, DateOnly? EndDate, string Status)
+public record ProjectDto(
+    Guid ProjectId,
+    string ClientName,
+    string ProjectName,
+    DateOnly StartDate,
+    DateOnly? EndDate,
+    string Status,
+    decimal? DealValue,
+    int? WinProbability,
+    string? EngagementType,
+    Guid? DeliveryLeadId,
+    string? Notes)
 {
-    public static ProjectDto From(Project p) => new(p.ProjectId, p.ClientName, p.ProjectName, p.StartDate, p.EndDate, p.Status.ToString().ToLowerInvariant());
+    /// <summary>Deal value is only included for leadership callers.</summary>
+    public static ProjectDto From(Project p, bool includeFinancials) => new(
+        p.ProjectId,
+        p.ClientName,
+        p.ProjectName,
+        p.StartDate,
+        p.EndDate,
+        p.Status.ToString().ToLowerInvariant(),
+        includeFinancials ? p.DealValue : null,
+        p.WinProbability,
+        p.EngagementType,
+        p.DeliveryLeadId,
+        p.Notes);
 }
 
-public record CreateProjectRequest(string ClientName, string ProjectName, DateOnly StartDate, DateOnly? EndDate, string Status);
-public record UpdateProjectRequest(string ClientName, string ProjectName, DateOnly StartDate, DateOnly? EndDate, string Status);
+public record CreateProjectRequest(
+    string ClientName,
+    string ProjectName,
+    DateOnly StartDate,
+    DateOnly? EndDate,
+    string Status,
+    decimal? DealValue,
+    int? WinProbability,
+    string? EngagementType,
+    Guid? DeliveryLeadId,
+    string? Notes);
+public record UpdateProjectRequest(
+    string ClientName,
+    string ProjectName,
+    DateOnly StartDate,
+    DateOnly? EndDate,
+    string Status,
+    decimal? DealValue,
+    int? WinProbability,
+    string? EngagementType,
+    Guid? DeliveryLeadId,
+    string? Notes);
+
+// Clients
+public record ClientDto(Guid ClientId, string Name, string? Industry, string? RelationshipPartner, string? Notes)
+{
+    public static ClientDto From(Client c) => new(c.ClientId, c.Name, c.Industry, c.RelationshipPartner, c.Notes);
+}
+
+public record UpsertClientRequest(string Name, string? Industry, string? RelationshipPartner, string? Notes);
+
+// Actuals
+public record ActualHoursDto(Guid ActualHoursId, Guid PersonId, DateOnly Month, decimal ChargeableHours)
+{
+    public static ActualHoursDto From(ActualHours a) => new(a.ActualHoursId, a.PersonId, a.Month, a.ChargeableHours);
+}
+
+public record UpsertActualHoursRequest(Guid PersonId, DateOnly Month, decimal ChargeableHours);
 
 // Allocations
 public record AllocationDto(Guid AllocationId, Guid PersonId, Guid ProjectId, DateOnly WeekStart, decimal Hours)

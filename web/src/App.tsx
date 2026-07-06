@@ -5,6 +5,7 @@ import { RequireRole } from "@/components/RequireRole";
 import { LoginScreen } from "@/components/LoginScreen";
 import DashboardPage from "@/pages/DashboardPage";
 import PeoplePage from "@/pages/PeoplePage";
+import PersonProfilePage from "@/pages/PersonProfilePage";
 import ProjectsPage from "@/pages/ProjectsPage";
 import AllocationsPage from "@/pages/AllocationsPage";
 import AuditPage from "@/pages/AuditPage";
@@ -39,6 +40,14 @@ export default function App() {
           element={
             <RequireRole roles={["viewer", "editor", "leadership"]}>
               <PeoplePage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/people/:id"
+          element={
+            <RequireRole roles={["viewer", "editor", "leadership"]}>
+              <PersonProfilePage />
             </RequireRole>
           }
         />

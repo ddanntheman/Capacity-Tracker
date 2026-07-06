@@ -18,6 +18,14 @@ public class CapacityDbContext(DbContextOptions<CapacityDbContext> options) : Db
             e.Property(p => p.DisplayName).HasMaxLength(256).IsRequired();
             e.Property(p => p.Email).HasMaxLength(256).IsRequired();
             e.Property(p => p.JobTitle).HasMaxLength(256);
+            e.Property(p => p.Rank).HasMaxLength(64);
+            e.Property(p => p.Practice).HasMaxLength(128);
+            e.Property(p => p.Location).HasMaxLength(128);
+            e.Property(p => p.Phone).HasMaxLength(32);
+            e.Property(p => p.CostRate).HasPrecision(10, 2);
+            e.Property(p => p.BillRate).HasPrecision(10, 2);
+            e.Property(p => p.Skills).HasMaxLength(1024);
+            e.Property(p => p.Notes).HasMaxLength(4000);
             e.HasOne(p => p.Manager)
                 .WithMany()
                 .HasForeignKey(p => p.ManagerId)

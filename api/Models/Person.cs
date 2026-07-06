@@ -16,6 +16,33 @@ public class Person
     public Guid? ManagerId { get; set; }
     public Person? Manager { get; set; }
 
+    /// <summary>Career level (e.g. "Senior Consultant", "Director", "Partner").</summary>
+    public string? Rank { get; set; }
+
+    /// <summary>Practice or department (e.g. "Cyber", "M&amp;A Advisory").</summary>
+    public string? Practice { get; set; }
+
+    public string? Location { get; set; }
+    public string? Phone { get; set; }
+    public DateOnly? StartDate { get; set; }
+
+    /// <summary>Fully-loaded internal hourly cost. Leadership-only.</summary>
+    public decimal? CostRate { get; set; }
+
+    /// <summary>Standard client-facing hourly bill rate. Leadership-only.</summary>
+    public decimal? BillRate { get; set; }
+
+    /// <summary>Target billable utilization as a percentage (0-100).</summary>
+    public int? UtilizationTarget { get; set; }
+
+    /// <summary>Standard working hours per week.</summary>
+    public int WeeklyCapacityHours { get; set; } = 40;
+
+    /// <summary>Comma-separated skill tags.</summary>
+    public string? Skills { get; set; }
+
+    public string? Notes { get; set; }
+
     public bool IsActive { get; set; } = true;
 
     public ICollection<Allocation> Allocations { get; set; } = [];

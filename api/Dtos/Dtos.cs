@@ -3,13 +3,80 @@ using CapacityTracker.Api.Models;
 namespace CapacityTracker.Api.Dtos;
 
 // People
-public record PersonDto(Guid PersonId, string DisplayName, string Email, string? JobTitle, Guid? ManagerId, bool IsActive)
+public record PersonDto(
+    Guid PersonId,
+    string DisplayName,
+    string Email,
+    string? JobTitle,
+    Guid? ManagerId,
+    string? Rank,
+    string? Practice,
+    string? Location,
+    string? Phone,
+    DateOnly? StartDate,
+    decimal? CostRate,
+    decimal? BillRate,
+    int? UtilizationTarget,
+    int WeeklyCapacityHours,
+    string? Skills,
+    string? Notes,
+    bool IsActive)
 {
-    public static PersonDto From(Person p) => new(p.PersonId, p.DisplayName, p.Email, p.JobTitle, p.ManagerId, p.IsActive);
+    /// <summary>Cost and bill rates are only included for leadership callers.</summary>
+    public static PersonDto From(Person p, bool includeFinancials) => new(
+        p.PersonId,
+        p.DisplayName,
+        p.Email,
+        p.JobTitle,
+        p.ManagerId,
+        p.Rank,
+        p.Practice,
+        p.Location,
+        p.Phone,
+        p.StartDate,
+        includeFinancials ? p.CostRate : null,
+        includeFinancials ? p.BillRate : null,
+        p.UtilizationTarget,
+        p.WeeklyCapacityHours,
+        p.Skills,
+        p.Notes,
+        p.IsActive);
 }
 
-public record CreatePersonRequest(string DisplayName, string Email, string? JobTitle, Guid? ManagerId);
-public record UpdatePersonRequest(string DisplayName, string Email, string? JobTitle, Guid? ManagerId, bool IsActive);
+public record CreatePersonRequest(
+    string DisplayName,
+    string Email,
+    string? JobTitle,
+    Guid? ManagerId,
+    string? Rank,
+    string? Practice,
+    string? Location,
+    string? Phone,
+    DateOnly? StartDate,
+    decimal? CostRate,
+    decimal? BillRate,
+    int? UtilizationTarget,
+    int? WeeklyCapacityHours,
+    string? Skills,
+    string? Notes);
+
+public record UpdatePersonRequest(
+    string DisplayName,
+    string Email,
+    string? JobTitle,
+    Guid? ManagerId,
+    string? Rank,
+    string? Practice,
+    string? Location,
+    string? Phone,
+    DateOnly? StartDate,
+    decimal? CostRate,
+    decimal? BillRate,
+    int? UtilizationTarget,
+    int? WeeklyCapacityHours,
+    string? Skills,
+    string? Notes,
+    bool IsActive);
 
 // Projects
 public record ProjectDto(Guid ProjectId, string ClientName, string ProjectName, DateOnly StartDate, DateOnly? EndDate, string Status)

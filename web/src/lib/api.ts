@@ -44,6 +44,7 @@ export const api = {
 
   listPeople: (includeInactive = false) =>
     request<Person[]>(`/people${includeInactive ? "?includeInactive=true" : ""}`),
+  getPerson: (id: string) => request<Person>(`/people/${id}`),
   createPerson: (body: Omit<Person, "personId" | "isActive">) =>
     request<Person>("/people", { method: "POST", body: JSON.stringify(body) }),
   updatePerson: (id: string, body: Omit<Person, "personId">) =>

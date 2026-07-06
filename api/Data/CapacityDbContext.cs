@@ -9,6 +9,8 @@ public class CapacityDbContext(DbContextOptions<CapacityDbContext> options) : Db
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<Allocation> Allocations => Set<Allocation>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<Client> Clients => Set<Client>();
+    public DbSet<ActualHours> Actuals => Set<ActualHours>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -39,6 +41,35 @@ public class CapacityDbContext(DbContextOptions<CapacityDbContext> options) : Db
             e.Property(p => p.ClientName).HasMaxLength(256).IsRequired();
             e.Property(p => p.ProjectName).HasMaxLength(256).IsRequired();
             e.Property(p => p.Status).HasConversion<int>();
+            e.Property(p => p.DealValue).HasPrecision(12, 2);
+            e.Property(p => p.EngagementType).HasMaxLength(64);
+            e.Property(p => p.Notes).HasMaxLength(4000);
+            e.HasOne(p => p.DeliveryLead)
+                .WithMany()
+                .HasForeignKey(p => p.DeliveryLeadId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        b.Entity<Client>(e =>
+        {
+            e.HasKey(c => c.ClientId);
+            e.Property(c => c.Name).HasMaxLength(256).IsRequired();
+            e.Property(c => c.Industry).HasMaxLength(128);
+            e.Property(c => c.RelationshipPartner).HasMaxLength(256);
+            e.Property(c => c.Notes).HasMaxLength(4000);
+            e.HasIndex(c => c.Name).IsUnique();
+        });
+
+        b.Entity<ActualHours>(e =>
+        {
+            e.HasKey(a => a.ActualHoursId);
+            e.Property(a => a.ChargeableHours).HasPrecision(7, 2);
+            e.HasOne(a => a.Person)
+                .WithMany()
+                .HasForeignKey(a => a.PersonId)
+                .OnDelete(DeleteBehavior.Cascade);
+            // One row per person/month.
+            e.HasIndex(a => new { a.PersonId, a.Month }).IsUnique();
         });
 
         b.Entity<Allocation>(e =>

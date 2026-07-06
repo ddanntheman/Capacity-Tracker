@@ -11,6 +11,12 @@ import AllocationsPage from "@/pages/AllocationsPage";
 import AuditPage from "@/pages/AuditPage";
 import UtilizationTrackerPage from "@/pages/UtilizationTrackerPage";
 import ResourceSummaryPage from "@/pages/ResourceSummaryPage";
+import ClientsPage from "@/pages/ClientsPage";
+import ClientDetailPage from "@/pages/ClientDetailPage";
+import ExecutiveSummaryPage from "@/pages/ExecutiveSummaryPage";
+import ActualsPage from "@/pages/ActualsPage";
+import BenchPage from "@/pages/BenchPage";
+import RevenuePage from "@/pages/RevenuePage";
 
 export default function App() {
   const { me, isLoading, error } = useAuth();
@@ -82,6 +88,54 @@ export default function App() {
           element={
             <RequireRole roles={["leadership"]}>
               <ResourceSummaryPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/clients"
+          element={
+            <RequireRole roles={["viewer", "editor", "leadership"]}>
+              <ClientsPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/clients/:id"
+          element={
+            <RequireRole roles={["viewer", "editor", "leadership"]}>
+              <ClientDetailPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/executive-summary"
+          element={
+            <RequireRole roles={["leadership"]}>
+              <ExecutiveSummaryPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/actuals"
+          element={
+            <RequireRole roles={["viewer", "editor", "leadership"]}>
+              <ActualsPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/bench"
+          element={
+            <RequireRole roles={["editor", "leadership"]}>
+              <BenchPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/revenue"
+          element={
+            <RequireRole roles={["leadership"]}>
+              <RevenuePage />
             </RequireRole>
           }
         />

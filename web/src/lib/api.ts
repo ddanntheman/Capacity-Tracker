@@ -1,7 +1,10 @@
 import type {
+  ActualHours,
   Allocation,
   AllocationWriteResult,
   AuditEntry,
+  Client,
+  ClientDetail,
   DashboardSummary,
   Me,
   Person,
@@ -58,6 +61,15 @@ export const api = {
   updateProject: (id: string, body: Omit<Project, "projectId">) =>
     request<Project>(`/projects/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   archiveProject: (id: string) => request<Project>(`/projects/${id}/archive`, { method: "POST" }),
+
+  listClients: () => request<Client[]>("/clients"),
+  getClient: (id: string) => request<ClientDetail>(`/clients/${id}`),
+  updateClient: (id: string, body: Omit<Client, "clientId">) =>
+    request<Client>(`/clients/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+
+  listActuals: (year: number) => request<ActualHours[]>(`/actuals?year=${year}`),
+  upsertActual: (body: { personId: string; month: string; chargeableHours: number }) =>
+    request<ActualHours | undefined>("/actuals", { method: "POST", body: JSON.stringify(body) }),
 
   listAllocations: (weekStart: string, weeks: number, personId?: string) =>
     request<Allocation[]>(

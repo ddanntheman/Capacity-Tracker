@@ -30,9 +30,11 @@ public class ProjectsFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
             query = query.Where(p => p.Status != ProjectStatus.Closed);
         }
 
-        var projects = await query
+        var includeFinancials = result.User!.HasRole(AppRoles.Leadership);
+        var entities = await query
             .OrderBy(p => p.ClientName).ThenBy(p => p.ProjectName)
-            .Select(p => ProjectDto.From(p)).ToListAsync();
+            .ToListAsync();
+        var projects = entities.Select(p => ProjectDto.From(p, includeFinancials)).ToList();
         return new OkObjectResult(projects);
     }
 
@@ -64,11 +66,17 @@ public class ProjectsFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
             StartDate = body.StartDate,
             EndDate = body.EndDate,
             Status = status,
+            DealValue = body.DealValue,
+            WinProbability = ClampProbability(body.WinProbability),
+            EngagementType = body.EngagementType?.Trim(),
+            DeliveryLeadId = body.DeliveryLeadId,
+            Notes = body.Notes?.Trim(),
         };
         db.Projects.Add(project);
+        await EnsureClient(project.ClientName);
         audit.Record(nameof(Project), project.ProjectId.ToString(), "created", null, project.ProjectName, result.User!.Oid);
         await db.SaveChangesAsync();
-        return new CreatedResult($"/api/projects/{project.ProjectId}", ProjectDto.From(project));
+        return new CreatedResult($"/api/projects/{project.ProjectId}", ProjectDto.From(project, result.User!.HasRole(AppRoles.Leadership)));
     }
 
     [Function("UpdateProject")]
@@ -103,10 +111,16 @@ public class ProjectsFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
         project.StartDate = body.StartDate;
         project.EndDate = body.EndDate;
         project.Status = status;
+        project.DealValue = body.DealValue;
+        project.WinProbability = ClampProbability(body.WinProbability);
+        project.EngagementType = body.EngagementType?.Trim();
+        project.DeliveryLeadId = body.DeliveryLeadId;
+        project.Notes = body.Notes?.Trim();
 
+        await EnsureClient(project.ClientName);
         audit.RecordDiff(nameof(Project), id.ToString(), before, Snapshot(project), result.User!.Oid);
         await db.SaveChangesAsync();
-        return new OkObjectResult(ProjectDto.From(project));
+        return new OkObjectResult(ProjectDto.From(project, result.User!.HasRole(AppRoles.Leadership)));
     }
 
     [Function("ArchiveProject")]
@@ -129,8 +143,18 @@ public class ProjectsFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
         project.Status = ProjectStatus.Closed;
         audit.Record(nameof(Project), id.ToString(), nameof(Project.Status), old.ToString(), nameof(ProjectStatus.Closed), result.User!.Oid);
         await db.SaveChangesAsync();
-        return new OkObjectResult(ProjectDto.From(project));
+        return new OkObjectResult(ProjectDto.From(project, result.User!.HasRole(AppRoles.Leadership)));
     }
+
+    private async Task EnsureClient(string name)
+    {
+        if (!await db.Clients.AnyAsync(c => c.Name == name))
+        {
+            db.Clients.Add(new Client { ClientId = Guid.NewGuid(), Name = name });
+        }
+    }
+
+    private static int? ClampProbability(int? value) => value is null ? null : Math.Clamp(value.Value, 0, 100);
 
     private static bool TryParseStatus(string? value, out ProjectStatus status) =>
         Enum.TryParse(value, ignoreCase: true, out status) && Enum.IsDefined(status);
@@ -142,5 +166,10 @@ public class ProjectsFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
         [nameof(Project.StartDate)] = p.StartDate.ToString("o"),
         [nameof(Project.EndDate)] = p.EndDate?.ToString("o"),
         [nameof(Project.Status)] = p.Status.ToString(),
+        [nameof(Project.DealValue)] = p.DealValue?.ToString(),
+        [nameof(Project.WinProbability)] = p.WinProbability?.ToString(),
+        [nameof(Project.EngagementType)] = p.EngagementType,
+        [nameof(Project.DeliveryLeadId)] = p.DeliveryLeadId?.ToString(),
+        [nameof(Project.Notes)] = p.Notes,
     };
 }

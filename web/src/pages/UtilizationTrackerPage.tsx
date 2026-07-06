@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { availabilityStatus, rygCellClass } from "@/lib/ryg";
 import { cn } from "@/lib/utils";
 
 type WeekBucket = { committed: number; pipeline: number; committedProjects: string[]; pipelineProjects: string[] };
@@ -155,6 +156,11 @@ export default function UtilizationTrackerPage() {
             <span className="flex items-center gap-1"><Badge variant="ok">C</Badge> committed (won/sold work)</span>
             <span className="flex items-center gap-1"><Badge variant="warn">P</Badge> pipeline (likely to close)</span>
             <span className="flex items-center gap-1"><Badge variant="secondary">A</Badge> available (capacity − C − P)</span>
+            <span className="flex items-center gap-2">
+              <span className={cn("inline-block size-3 rounded", rygCellClass.ok)} /> &gt;8h free
+              <span className={cn("inline-block size-3 rounded", rygCellClass.warn)} /> 0–8h free
+              <span className={cn("inline-block size-3 rounded", rygCellClass.over)} /> overbooked
+            </span>
           </div>
         </CardContent>
       </Card>
@@ -205,14 +211,16 @@ function PersonRows({
                 : row.key === "pipeline"
                   ? bucket?.pipelineProjects.join(", ")
                   : undefined;
-            const overbooked = row.key === "available" && committed + pipeline > capacity;
+            const free = capacity - committed - pipeline;
+            const overbooked = row.key === "available" && free < 0;
             return (
               <td
                 key={w}
                 title={title || undefined}
                 className={cn(
                   "p-1 text-center tabular-nums",
-                  value === 0 && "text-[var(--color-muted-foreground)]",
+                  value === 0 && row.key !== "available" && "text-[var(--color-muted-foreground)]",
+                  row.key === "available" && rygCellClass[availabilityStatus(free)],
                   overbooked && "text-[var(--color-over)] font-medium",
                 )}
               >

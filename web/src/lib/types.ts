@@ -38,6 +38,32 @@ export interface Project {
   startDate: string;
   endDate: string | null;
   status: ProjectStatus;
+  /** Only present for leadership users. */
+  dealValue: number | null;
+  winProbability: number | null;
+  engagementType: string | null;
+  deliveryLeadId: string | null;
+  notes: string | null;
+}
+
+export interface Client {
+  clientId: string;
+  name: string;
+  industry: string | null;
+  relationshipPartner: string | null;
+  notes: string | null;
+}
+
+export interface ClientDetail {
+  client: Client;
+  projects: Project[];
+}
+
+export interface ActualHours {
+  actualHoursId: string;
+  personId: string;
+  month: string;
+  chargeableHours: number;
 }
 
 export interface Allocation {

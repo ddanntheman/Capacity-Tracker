@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
@@ -23,9 +24,13 @@ const statusVariant: Record<ProjectStatus, "ok" | "warn" | "secondary"> = {
 export default function ProjectsPage() {
   const { hasRole } = useAuth();
   const canEdit = hasRole("editor");
+  const isLeadership = hasRole("leadership");
   const qc = useQueryClient();
 
   const { data: projects = [], isLoading } = useQuery({ queryKey: ["projects"], queryFn: () => api.listProjects() });
+  const { data: clients = [] } = useQuery({ queryKey: ["clients"], queryFn: () => api.listClients() });
+
+  const clientIdByName = useMemo(() => new Map(clients.map((c) => [c.name, c.clientId])), [clients]);
 
   const archive = useMutation({
     mutationFn: (id: string) => api.archiveProject(id),
@@ -56,17 +61,29 @@ export default function ProjectsPage() {
                 <TableRow>
                   <TableHead>Client</TableHead>
                   <TableHead>Project</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Start</TableHead>
                   <TableHead>End</TableHead>
                   <TableHead>Status</TableHead>
+                  {isLeadership && <TableHead className="text-right">Deal value</TableHead>}
+                  <TableHead className="text-right">Win %</TableHead>
                   {canEdit && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {projects.map((p) => (
                   <TableRow key={p.projectId}>
-                    <TableCell className="font-medium">{p.clientName}</TableCell>
+                    <TableCell className="font-medium">
+                      {clientIdByName.has(p.clientName) ? (
+                        <Link to={`/clients/${clientIdByName.get(p.clientName)}`} className="hover:underline">
+                          {p.clientName}
+                        </Link>
+                      ) : (
+                        p.clientName
+                      )}
+                    </TableCell>
                     <TableCell>{p.projectName}</TableCell>
+                    <TableCell>{p.engagementType ?? "—"}</TableCell>
                     <TableCell>{p.startDate}</TableCell>
                     <TableCell>{p.endDate ?? "—"}</TableCell>
                     <TableCell>
@@ -74,6 +91,10 @@ export default function ProjectsPage() {
                         {p.status}
                       </Badge>
                     </TableCell>
+                    {isLeadership && (
+                      <TableCell className="text-right">{p.dealValue != null ? `$${p.dealValue.toLocaleString()}` : "—"}</TableCell>
+                    )}
+                    <TableCell className="text-right">{p.winProbability != null ? `${p.winProbability}%` : "—"}</TableCell>
                     {canEdit && (
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
@@ -90,7 +111,7 @@ export default function ProjectsPage() {
                 ))}
                 {projects.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={canEdit ? 6 : 5} className="text-center text-[var(--color-muted-foreground)]">
+                    <TableCell colSpan={7 + (isLeadership ? 1 : 0) + (canEdit ? 1 : 0)} className="text-center text-[var(--color-muted-foreground)]">
                       No projects yet.
                     </TableCell>
                   </TableRow>
@@ -112,15 +133,31 @@ function ProjectDialog({ project }: { project?: Project }) {
   const [startDate, setStartDate] = useState(project?.startDate ?? "");
   const [endDate, setEndDate] = useState(project?.endDate ?? "");
   const [status, setStatus] = useState<ProjectStatus>(project?.status ?? "pipeline");
+  const [dealValue, setDealValue] = useState(project?.dealValue != null ? String(project.dealValue) : "");
+  const [winProbability, setWinProbability] = useState(project?.winProbability != null ? String(project.winProbability) : "");
+  const [engagementType, setEngagementType] = useState(project?.engagementType ?? "");
+  const [notes, setNotes] = useState(project?.notes ?? "");
 
   const save = useMutation({
     mutationFn: async () => {
-      const body = { clientName, projectName, startDate, endDate: endDate || null, status };
+      const body = {
+        clientName,
+        projectName,
+        startDate,
+        endDate: endDate || null,
+        status,
+        dealValue: dealValue === "" ? null : Number(dealValue),
+        winProbability: winProbability === "" ? null : Math.max(0, Math.min(100, Number(winProbability))),
+        engagementType: engagementType || null,
+        deliveryLeadId: project?.deliveryLeadId ?? null,
+        notes: notes || null,
+      };
       return project ? api.updateProject(project.projectId, body) : api.createProject(body);
     },
     onSuccess: () => {
       toast.success(project ? "Project updated" : "Project created");
       void qc.invalidateQueries({ queryKey: ["projects"] });
+      void qc.invalidateQueries({ queryKey: ["clients"] });
       setOpen(false);
     },
     onError: (e) => toast.error(e instanceof ApiError ? "Check the form fields" : "Save failed"),
@@ -174,6 +211,40 @@ function ProjectDialog({ project }: { project?: Project }) {
                 <SelectItem value="closed">Closed</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="dealValue">Deal value ($)</Label>
+              <Input id="dealValue" type="number" min={0} value={dealValue} onChange={(e) => setDealValue(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="winProb">Win probability (%)</Label>
+              <Input id="winProb" type="number" min={0} max={100} value={winProbability} onChange={(e) => setWinProbability(e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Engagement type</Label>
+            <Select value={engagementType || "none"} onValueChange={(v) => setEngagementType(v === "none" ? "" : v)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">—</SelectItem>
+                <SelectItem value="T&M">Time &amp; materials</SelectItem>
+                <SelectItem value="Fixed fee">Fixed fee</SelectItem>
+                <SelectItem value="Retainer">Retainer</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="projNotes">Notes</Label>
+            <textarea
+              id="projNotes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              className="w-full rounded-md border bg-transparent px-3 py-2 text-sm"
+            />
           </div>
         </div>
         <DialogFooter>

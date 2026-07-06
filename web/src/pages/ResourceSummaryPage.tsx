@@ -4,7 +4,9 @@ import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { mondayOf } from "@/lib/weeks";
 import type { Project } from "@/lib/types";
+import { utilizationStatus, rygTextClass } from "@/lib/ryg";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -20,6 +22,7 @@ export default function ResourceSummaryPage() {
     queryKey: ["allocations", firstMonday, WEEKS_PER_YEAR],
     queryFn: () => api.listAllocations(firstMonday, WEEKS_PER_YEAR),
   });
+  const actualsQuery = useQuery({ queryKey: ["actuals", year], queryFn: () => api.listActuals(year) });
 
   const projects = useMemo(() => {
     const m = new Map<string, Project>();
@@ -28,18 +31,27 @@ export default function ResourceSummaryPage() {
   }, [projectsQuery.data]);
 
   const rows = useMemo(() => {
-    const totals = new Map<string, { committed: number; pipeline: number }>();
+    const totals = new Map<string, { committed: number; pipeline: number; weightedPipeline: number }>();
     for (const a of allocationsQuery.data ?? []) {
       const project = projects.get(a.projectId);
       if (!project || project.status === "closed") continue;
-      if (!totals.has(a.personId)) totals.set(a.personId, { committed: 0, pipeline: 0 });
+      if (!totals.has(a.personId)) totals.set(a.personId, { committed: 0, pipeline: 0, weightedPipeline: 0 });
       const t = totals.get(a.personId)!;
-      if (project.status === "pipeline") t.pipeline += a.hours;
-      else t.committed += a.hours;
+      if (project.status === "pipeline") {
+        t.pipeline += a.hours;
+        t.weightedPipeline += a.hours * ((project.winProbability ?? 100) / 100);
+      } else {
+        t.committed += a.hours;
+      }
+    }
+
+    const actualsByPerson = new Map<string, number>();
+    for (const a of actualsQuery.data ?? []) {
+      actualsByPerson.set(a.personId, (actualsByPerson.get(a.personId) ?? 0) + a.chargeableHours);
     }
 
     return (peopleQuery.data ?? []).map((person) => {
-      const t = totals.get(person.personId) ?? { committed: 0, pipeline: 0 };
+      const t = totals.get(person.personId) ?? { committed: 0, pipeline: 0, weightedPipeline: 0 };
       const baseHours = (person.weeklyCapacityHours || 40) * WEEKS_PER_YEAR;
       const target = person.utilizationTarget;
       const billableTarget = target != null ? Math.round((baseHours * target) / 100) : null;
@@ -47,10 +59,11 @@ export default function ResourceSummaryPage() {
       const forecastUtil = baseHours > 0 ? (totalChargeable / baseHours) * 100 : 0;
       const vsTarget = target != null ? forecastUtil - target : null;
       const remaining = billableTarget != null ? billableTarget - totalChargeable : null;
-      const onTrack = target != null ? forecastUtil >= target : null;
-      return { person, ...t, baseHours, target, billableTarget, totalChargeable, forecastUtil, vsTarget, remaining, onTrack };
+      const status = utilizationStatus(forecastUtil, target ?? null);
+      const actualToDate = actualsByPerson.get(person.personId) ?? 0;
+      return { person, ...t, baseHours, target, billableTarget, totalChargeable, forecastUtil, vsTarget, remaining, status, actualToDate };
     });
-  }, [peopleQuery.data, allocationsQuery.data, projects]);
+  }, [peopleQuery.data, allocationsQuery.data, actualsQuery.data, projects]);
 
   return (
     <div className="space-y-6">
@@ -79,6 +92,8 @@ export default function ResourceSummaryPage() {
                   <TableHead className="text-right">Billable target (hrs)</TableHead>
                   <TableHead className="text-right">Committed (hrs)</TableHead>
                   <TableHead className="text-right">Pipeline (hrs)</TableHead>
+                  <TableHead className="text-right">Weighted pipeline (hrs)</TableHead>
+                  <TableHead className="text-right">Actual to date (hrs)</TableHead>
                   <TableHead className="text-right">Total chargeable (hrs)</TableHead>
                   <TableHead className="text-right">Forecast util</TableHead>
                   <TableHead className="text-right">vs. target</TableHead>
@@ -99,17 +114,23 @@ export default function ResourceSummaryPage() {
                     <TableCell className="text-right">{r.billableTarget ?? "—"}</TableCell>
                     <TableCell className="text-right">{r.committed}</TableCell>
                     <TableCell className="text-right">{r.pipeline}</TableCell>
+                    <TableCell className="text-right">{Math.round(r.weightedPipeline)}</TableCell>
+                    <TableCell className="text-right">{r.actualToDate > 0 ? r.actualToDate : "—"}</TableCell>
                     <TableCell className="text-right">{r.totalChargeable}</TableCell>
-                    <TableCell className="text-right">{r.forecastUtil.toFixed(1)}%</TableCell>
+                    <TableCell className={cn("text-right font-medium", r.status && rygTextClass[r.status])}>
+                      {r.forecastUtil.toFixed(1)}%
+                    </TableCell>
                     <TableCell className="text-right">
                       {r.vsTarget != null ? `${r.vsTarget >= 0 ? "+" : ""}${r.vsTarget.toFixed(1)} pts` : "—"}
                     </TableCell>
                     <TableCell className="text-right">{r.remaining != null ? Math.max(0, r.remaining) : "—"}</TableCell>
                     <TableCell>
-                      {r.onTrack == null ? (
+                      {r.status == null ? (
                         <Badge variant="secondary">No target</Badge>
-                      ) : r.onTrack ? (
+                      ) : r.status === "ok" ? (
                         <Badge variant="ok">On track</Badge>
+                      ) : r.status === "warn" ? (
+                        <Badge variant="warn">At risk</Badge>
                       ) : (
                         <Badge variant="over">Off track</Badge>
                       )}
@@ -118,7 +139,7 @@ export default function ResourceSummaryPage() {
                 ))}
                 {rows.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={11} className="text-center text-[var(--color-muted-foreground)]">
+                    <TableCell colSpan={13} className="text-center text-[var(--color-muted-foreground)]">
                       No people to display.
                     </TableCell>
                   </TableRow>

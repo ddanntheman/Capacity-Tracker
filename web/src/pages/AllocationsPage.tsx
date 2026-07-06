@@ -206,19 +206,24 @@ function EditAllocationsDialog({
   }, [projects, existing]);
 
   const [values, setValues] = useState<Record<string, number>>(initial);
+  const [repeatWeeks, setRepeatWeeks] = useState(0);
   const total = Object.values(values).reduce((s, v) => s + (v || 0), 0);
   const capacity = person.weeklyCapacityHours || 40;
 
   const save = useMutation({
     mutationFn: async () => {
       const changed = projects.filter((p) => (values[p.projectId] || 0) !== (initial[p.projectId] || 0));
-      for (const p of changed) {
-        await api.upsertAllocation({
-          personId: person.personId,
-          projectId: p.projectId,
-          weekStart: week,
-          hours: values[p.projectId] || 0,
-        });
+      const targetWeeks = [week, ...Array.from({ length: repeatWeeks }, (_, i) => shiftWeeks(week, i + 1))];
+      for (const w of targetWeeks) {
+        const toWrite = w === week ? changed : projects.filter((p) => (values[p.projectId] || 0) > 0 || (initial[p.projectId] || 0) !== (values[p.projectId] || 0));
+        for (const p of toWrite) {
+          await api.upsertAllocation({
+            personId: person.personId,
+            projectId: p.projectId,
+            weekStart: w,
+            hours: values[p.projectId] || 0,
+          });
+        }
       }
     },
     onSuccess: () => {
@@ -262,6 +267,24 @@ function EditAllocationsDialog({
         <div className="flex items-center justify-between border-t pt-3">
           <span className="text-sm">Weekly total (capacity {capacity}h)</span>
           <Badge variant={totalVariant(total, capacity)}>{total}h</Badge>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="repeatWeeks" className="text-sm">
+            Also apply to following weeks
+          </Label>
+          <Select value={String(repeatWeeks)} onValueChange={(v) => setRepeatWeeks(Number(v))}>
+            <SelectTrigger id="repeatWeeks" className="w-36">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="0">This week only</SelectItem>
+              {[1, 2, 3, 5, 7, 11].map((n) => (
+                <SelectItem key={n} value={String(n)}>
+                  +{n} week{n > 1 ? "s" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         {total > capacity && <p className="text-sm text-[var(--color-warn)]">Booked over {capacity}h capacity.</p>}
         <DialogFooter>

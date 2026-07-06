@@ -17,7 +17,9 @@ export interface AllocationChange {
  */
 export function useAllocationRealtime(weekStarts: string[], onChange: (change: AllocationChange) => void) {
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   const key = weekStarts.join(",");
 

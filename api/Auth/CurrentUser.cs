@@ -108,11 +108,11 @@ public class CurrentUserAccessor(IConfiguration config, ILogger<CurrentUserAcces
             IdentityProvider = "dev",
             UserId = oid,
             UserDetails = email,
-            UserRoles = roles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
-            Claims = new List<ClientPrincipalClaim>
-            {
+            UserRoles = [.. roles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)],
+            Claims =
+            [
                 new() { Type = OidClaim, Value = oid },
-            },
+            ],
         };
     }
 

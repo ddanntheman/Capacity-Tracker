@@ -16,5 +16,5 @@ public class Project
     public DateOnly? EndDate { get; set; }
     public ProjectStatus Status { get; set; } = ProjectStatus.Pipeline;
 
-    public ICollection<Allocation> Allocations { get; set; } = new List<Allocation>();
+    public ICollection<Allocation> Allocations { get; set; } = [];
 }

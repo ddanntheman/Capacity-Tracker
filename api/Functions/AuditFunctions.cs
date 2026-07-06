@@ -15,7 +15,10 @@ public class AuditFunctions(CapacityDbContext db, RequestAuthorizer auth)
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "audit")] HttpRequest req)
     {
         var result = auth.Authorize(req, AppRoles.Leadership);
-        if (!result.Allowed) return result.Error!;
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
 
         var query = db.AuditLogs.AsNoTracking().AsQueryable();
 

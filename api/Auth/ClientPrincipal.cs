@@ -18,10 +18,10 @@ public class ClientPrincipal
     public string? UserDetails { get; set; }
 
     [JsonPropertyName("userRoles")]
-    public List<string> UserRoles { get; set; } = new();
+    public List<string> UserRoles { get; set; } = [];
 
     [JsonPropertyName("claims")]
-    public List<ClientPrincipalClaim> Claims { get; set; } = new();
+    public List<ClientPrincipalClaim> Claims { get; set; } = [];
 }
 
 public class ClientPrincipalClaim

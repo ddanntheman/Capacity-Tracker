@@ -19,7 +19,10 @@ public class DashboardFunctions(CapacityDbContext db, RequestAuthorizer auth)
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "dashboard/summary")] HttpRequest req)
     {
         var result = auth.Authorize(req, AppRoles.Leadership);
-        if (!result.Allowed) return result.Error!;
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
 
         var weekStart = DateOnly.TryParse(req.Query["weekStart"], out var w) ? w : WeekHelper.CurrentWeekStart();
 
@@ -54,7 +57,10 @@ public class DashboardFunctions(CapacityDbContext db, RequestAuthorizer auth)
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "dashboard/utilization")] HttpRequest req)
     {
         var result = auth.Authorize(req, AppRoles.Leadership);
-        if (!result.Allowed) return result.Error!;
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
 
         var weekStart = DateOnly.TryParse(req.Query["weekStart"], out var w) ? w : WeekHelper.CurrentWeekStart();
         var weeks = int.TryParse(req.Query["weeks"], out var n) ? Math.Clamp(n, 1, 26) : 6;
@@ -102,14 +108,20 @@ public class DashboardFunctions(CapacityDbContext db, RequestAuthorizer auth)
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "dashboard/person/{id:guid}")] HttpRequest req, Guid id)
     {
         var result = auth.Authorize(req, AppRoles.Leadership);
-        if (!result.Allowed) return result.Error!;
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
 
         var weekStart = DateOnly.TryParse(req.Query["weekStart"], out var w) ? w : WeekHelper.CurrentWeekStart();
         var weeks = int.TryParse(req.Query["weeks"], out var n) ? Math.Clamp(n, 1, 26) : 6;
         var end = weekStart.AddDays(7 * weeks);
 
         var person = await db.People.AsNoTracking().FirstOrDefaultAsync(p => p.PersonId == id);
-        if (person is null) return new NotFoundResult();
+        if (person is null)
+        {
+            return new NotFoundResult();
+        }
 
         var allocations = await db.Allocations.AsNoTracking()
             .Where(a => a.PersonId == id && a.WeekStart >= weekStart && a.WeekStart < end)

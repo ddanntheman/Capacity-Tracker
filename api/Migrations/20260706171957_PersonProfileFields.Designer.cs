@@ -4,6 +4,7 @@ using CapacityTracker.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CapacityTracker.Api.Migrations
 {
     [DbContext(typeof(CapacityDbContext))]
-    partial class CapacityDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260706171957_PersonProfileFields")]
+    partial class PersonProfileFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -28,9 +31,8 @@ namespace CapacityTracker.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<decimal>("Hours")
-                        .HasPrecision(6, 2)
-                        .HasColumnType("decimal(6,2)");
+                    b.Property<int>("PercentAllocated")
+                        .HasColumnType("int");
 
                     b.Property<Guid>("PersonId")
                         .HasColumnType("uniqueidentifier");

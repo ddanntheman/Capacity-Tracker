@@ -60,21 +60,21 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Allocation by project</CardTitle>
-            <CardDescription>Total allocated percentage across the window.</CardDescription>
+            <CardDescription>Total allocated hours across the window.</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Project</TableHead>
-                  <TableHead className="text-right">Allocated %</TableHead>
+                  <TableHead className="text-right">Allocated hrs</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {util.data?.byProject.map((p) => (
                   <TableRow key={p.projectId}>
                     <TableCell>{p.projectName}</TableCell>
-                    <TableCell className="text-right">{p.allocatedPercent}%</TableCell>
+                    <TableCell className="text-right">{p.allocatedHours}h</TableCell>
                   </TableRow>
                 ))}
                 {(util.data?.byProject.length ?? 0) === 0 && (
@@ -139,7 +139,7 @@ function DrillDownDialog({ id, name, weekStart, weeks, onClose }: { id: string; 
     queryKey: ["dashboard", "person", id, weekStart, weeks],
     queryFn: async () => {
       const res = await fetch(`/api/dashboard/person/${id}?weekStart=${weekStart}&weeks=${weeks}`);
-      return (await res.json()) as { allocations: { allocationId: string; projectName: string; weekStart: string; percentAllocated: number }[] };
+      return (await res.json()) as { allocations: { allocationId: string; projectName: string; weekStart: string; hours: number }[] };
     },
   });
 
@@ -154,7 +154,7 @@ function DrillDownDialog({ id, name, weekStart, weeks, onClose }: { id: string; 
             <TableRow>
               <TableHead>Week</TableHead>
               <TableHead>Project</TableHead>
-              <TableHead className="text-right">%</TableHead>
+              <TableHead className="text-right">Hours</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -162,7 +162,7 @@ function DrillDownDialog({ id, name, weekStart, weeks, onClose }: { id: string; 
               <TableRow key={a.allocationId}>
                 <TableCell>{weekLabel(a.weekStart)}</TableCell>
                 <TableCell>{a.projectName}</TableCell>
-                <TableCell className="text-right">{a.percentAllocated}%</TableCell>
+                <TableCell className="text-right">{a.hours}h</TableCell>
               </TableRow>
             ))}
             {(data?.allocations.length ?? 0) === 0 && (

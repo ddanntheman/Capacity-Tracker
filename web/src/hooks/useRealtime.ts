@@ -8,7 +8,7 @@ export interface AllocationChange {
   personId: string;
   projectId: string;
   weekStart: string;
-  percentAllocated: number;
+  hours: number;
 }
 
 /**

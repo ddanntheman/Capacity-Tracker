@@ -44,6 +44,7 @@ export const api = {
 
   listPeople: (includeInactive = false) =>
     request<Person[]>(`/people${includeInactive ? "?includeInactive=true" : ""}`),
+  getPerson: (id: string) => request<Person>(`/people/${id}`),
   createPerson: (body: Omit<Person, "personId" | "isActive">) =>
     request<Person>("/people", { method: "POST", body: JSON.stringify(body) }),
   updatePerson: (id: string, body: Omit<Person, "personId">) =>
@@ -62,7 +63,7 @@ export const api = {
     request<Allocation[]>(
       `/allocations?weekStart=${weekStart}&weeks=${weeks}${personId ? `&personId=${personId}` : ""}`,
     ),
-  upsertAllocation: (body: { personId: string; projectId: string; weekStart: string; percentAllocated: number }) =>
+  upsertAllocation: (body: { personId: string; projectId: string; weekStart: string; hours: number }) =>
     request<AllocationWriteResult>("/allocations", { method: "POST", body: JSON.stringify(body) }),
   deleteAllocation: (id: string) => request<AllocationWriteResult>(`/allocations/${id}`, { method: "DELETE" }),
 

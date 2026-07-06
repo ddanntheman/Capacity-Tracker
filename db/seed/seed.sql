@@ -41,16 +41,16 @@ DECLARE @monday date = DATEADD(DAY, -(DATEPART(WEEKDAY, GETUTCDATE()) + 5) % 7, 
 
 MERGE [Allocations] AS t
 USING (VALUES
-    (NEWID(), @bob,   @proj1, @monday,               60),
-    (NEWID(), @bob,   @proj2, @monday,               30),
-    (NEWID(), @carol, @proj1, @monday,               80),
-    (NEWID(), @dave,  @proj2, @monday,               50),
-    (NEWID(), @bob,   @proj1, DATEADD(DAY, 7, @monday),  100),
-    (NEWID(), @carol, @proj2, DATEADD(DAY, 7, @monday),  40),
-    (NEWID(), @dave,  @proj1, DATEADD(DAY, 14, @monday), 20)
-) AS s (AllocationId, PersonId, ProjectId, WeekStart, PercentAllocated)
+    (NEWID(), @bob,   @proj1, @monday,               24),
+    (NEWID(), @bob,   @proj2, @monday,               12),
+    (NEWID(), @carol, @proj1, @monday,               32),
+    (NEWID(), @dave,  @proj2, @monday,               20),
+    (NEWID(), @bob,   @proj1, DATEADD(DAY, 7, @monday),  40),
+    (NEWID(), @carol, @proj2, DATEADD(DAY, 7, @monday),  16),
+    (NEWID(), @dave,  @proj1, DATEADD(DAY, 14, @monday), 8)
+) AS s (AllocationId, PersonId, ProjectId, WeekStart, Hours)
 ON t.PersonId = s.PersonId AND t.ProjectId = s.ProjectId AND t.WeekStart = s.WeekStart
-WHEN MATCHED THEN UPDATE SET PercentAllocated = s.PercentAllocated
-WHEN NOT MATCHED THEN INSERT (AllocationId, PersonId, ProjectId, WeekStart, PercentAllocated)
-    VALUES (s.AllocationId, s.PersonId, s.ProjectId, s.WeekStart, s.PercentAllocated);
+WHEN MATCHED THEN UPDATE SET Hours = s.Hours
+WHEN NOT MATCHED THEN INSERT (AllocationId, PersonId, ProjectId, WeekStart, Hours)
+    VALUES (s.AllocationId, s.PersonId, s.ProjectId, s.WeekStart, s.Hours);
 GO

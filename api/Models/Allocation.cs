@@ -2,7 +2,7 @@ namespace CapacityTracker.Api.Models;
 
 /// <summary>
 /// Weekly-grain allocation linking a Person to a Project for the week beginning
-/// <see cref="WeekStart"/> (always a Monday, UTC date) with a percentage 0-100.
+/// <see cref="WeekStart"/> (always a Monday, UTC date) with booked hours.
 /// </summary>
 public class Allocation
 {
@@ -16,5 +16,5 @@ public class Allocation
 
     public DateOnly WeekStart { get; set; }
 
-    public int PercentAllocated { get; set; }
+    public decimal Hours { get; set; }
 }

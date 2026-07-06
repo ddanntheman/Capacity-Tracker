@@ -13,6 +13,19 @@ export interface Person {
   email: string;
   jobTitle: string | null;
   managerId: string | null;
+  rank: string | null;
+  practice: string | null;
+  location: string | null;
+  phone: string | null;
+  startDate: string | null;
+  /** Only present for leadership users. */
+  costRate: number | null;
+  /** Only present for leadership users. */
+  billRate: number | null;
+  utilizationTarget: number | null;
+  weeklyCapacityHours: number;
+  skills: string | null;
+  notes: string | null;
   isActive: boolean;
 }
 
@@ -32,7 +45,7 @@ export interface Allocation {
   personId: string;
   projectId: string;
   weekStart: string;
-  percentAllocated: number;
+  hours: number;
 }
 
 export interface AllocationWriteResult {
@@ -54,8 +67,8 @@ export interface DashboardSummary {
 }
 
 export interface UtilizationResponse {
-  byWeek: { weekStart: string; allocatedPercent: number; utilizationRate: number }[];
-  byProject: { projectId: string; projectName: string; allocatedPercent: number }[];
+  byWeek: { weekStart: string; allocatedHours: number; utilizationRate: number }[];
+  byProject: { projectId: string; projectName: string; allocatedHours: number }[];
   peopleCount: number;
 }
 

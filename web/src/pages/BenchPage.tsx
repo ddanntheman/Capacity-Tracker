@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { currentWeekStart, weekRange, weekLabel } from "@/lib/weeks";
 import type { Project } from "@/lib/types";
 import { availabilityStatus, rygCellClass } from "@/lib/ryg";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,9 +13,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 
 export default function BenchPage() {
-  const [weeks, setWeeks] = useState(4);
-  const [minFree, setMinFree] = useState(8);
-  const [practice, setPractice] = useState("all");
+  // Filters live in the URL so they survive navigation and can be shared.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const weeks = Number(searchParams.get("weeks")) || 4;
+  const minFree = searchParams.has("minFree") ? Math.max(0, Number(searchParams.get("minFree")) || 0) : 8;
+  const practice = searchParams.get("practice") ?? "all";
+  const setParam = (key: string, value: string) =>
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set(key, value);
+        return next;
+      },
+      { replace: true },
+    );
   const weekStart = currentWeekStart();
   const visibleWeeks = useMemo(() => weekRange(weekStart, weeks), [weekStart, weeks]);
 
@@ -74,7 +86,7 @@ export default function BenchPage() {
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1.5">
             <Label>Practice</Label>
-            <Select value={practice} onValueChange={setPractice}>
+            <Select value={practice} onValueChange={(v) => setParam("practice", v)}>
               <SelectTrigger className="w-40">
                 <SelectValue />
               </SelectTrigger>
@@ -90,7 +102,7 @@ export default function BenchPage() {
           </div>
           <div className="space-y-1.5">
             <Label>Weeks ahead</Label>
-            <Select value={String(weeks)} onValueChange={(v) => setWeeks(Number(v))}>
+            <Select value={String(weeks)} onValueChange={(v) => setParam("weeks", v)}>
               <SelectTrigger className="w-24">
                 <SelectValue />
               </SelectTrigger>
@@ -111,7 +123,7 @@ export default function BenchPage() {
               min={0}
               className="w-24"
               value={minFree}
-              onChange={(e) => setMinFree(Math.max(0, Number(e.target.value) || 0))}
+              onChange={(e) => setParam("minFree", String(Math.max(0, Number(e.target.value) || 0)))}
             />
           </div>
         </div>
@@ -138,6 +150,7 @@ export default function BenchPage() {
                     </th>
                   ))}
                   <th className="p-2 text-right font-medium">Total free</th>
+                  <th className="p-2" />
                 </tr>
               </thead>
               <tbody>
@@ -159,11 +172,16 @@ export default function BenchPage() {
                       </td>
                     ))}
                     <td className="p-2 text-right font-medium tabular-nums">{r.totalFree}</td>
+                    <td className="p-2 text-right">
+                      <Button asChild variant="outline" size="sm">
+                        <Link to={`/allocations?person=${r.person.personId}`}>Staff</Link>
+                      </Button>
+                    </td>
                   </tr>
                 ))}
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={4 + visibleWeeks.length} className="p-6 text-center text-[var(--color-muted-foreground)]">
+                    <td colSpan={5 + visibleWeeks.length} className="p-6 text-center text-[var(--color-muted-foreground)]">
                       Nobody matches the current filters.
                     </td>
                   </tr>

@@ -59,6 +59,15 @@ export interface ClientDetail {
   projects: Project[];
 }
 
+export interface Practice {
+  practiceId: string;
+  name: string;
+  leadId: string | null;
+  defaultUtilizationTarget: number | null;
+  isArchived: boolean;
+  headcount: number;
+}
+
 export interface ActualHours {
   actualHoursId: string;
   personId: string;

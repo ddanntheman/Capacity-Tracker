@@ -100,24 +100,28 @@ public class ClientsFunctions(CapacityDbContext db, RequestAuthorizer auth, Audi
             }
         }
 
-        await using var tx = await db.Database.BeginTransactionAsync();
-
-        if (!string.Equals(client.Name, newName, StringComparison.Ordinal))
+        var strategy = db.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
         {
-            // Keep projects linked to the renamed client.
-            await db.Projects.Where(p => p.ClientName == client.Name)
-                .ExecuteUpdateAsync(s => s.SetProperty(p => p.ClientName, newName));
-        }
+            await using var tx = await db.Database.BeginTransactionAsync();
 
-        var before = Snapshot(client);
-        client.Name = newName;
-        client.Industry = body.Industry?.Trim();
-        client.RelationshipPartner = body.RelationshipPartner?.Trim();
-        client.Notes = body.Notes?.Trim();
+            if (!string.Equals(client.Name, newName, StringComparison.Ordinal))
+            {
+                // Keep projects linked to the renamed client.
+                await db.Projects.Where(p => p.ClientName == client.Name)
+                    .ExecuteUpdateAsync(s => s.SetProperty(p => p.ClientName, newName));
+            }
 
-        audit.RecordDiff(nameof(Client), id.ToString(), before, Snapshot(client), result.User!.Oid);
-        await db.SaveChangesAsync();
-        await tx.CommitAsync();
+            var before = Snapshot(client);
+            client.Name = newName;
+            client.Industry = body.Industry?.Trim();
+            client.RelationshipPartner = body.RelationshipPartner?.Trim();
+            client.Notes = body.Notes?.Trim();
+
+            audit.RecordDiff(nameof(Client), id.ToString(), before, Snapshot(client), result.User!.Oid);
+            await db.SaveChangesAsync();
+            await tx.CommitAsync();
+        });
         return new OkObjectResult(ClientDto.From(client));
     }
 

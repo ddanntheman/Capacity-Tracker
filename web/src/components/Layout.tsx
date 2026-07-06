@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { NavLink } from "react-router-dom";
-import { CalendarRange, LayoutDashboard, Users, Briefcase, ScrollText, Gauge, ClipboardList, Building2, LineChart, Clock, Armchair, DollarSign } from "lucide-react";
+import { CalendarRange, LayoutDashboard, Users, Briefcase, ScrollText, Gauge, ClipboardList, Building2, LineChart, Clock, Armchair, DollarSign, Network } from "lucide-react";
 import { authLinks, useAuth } from "@/auth";
 import type { AppRole } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +24,7 @@ const navItems: NavItem[] = [
   { to: "/bench", label: "Bench", icon: <Armchair className="size-4" />, roles: ["editor", "leadership"] },
   { to: "/revenue", label: "Revenue", icon: <DollarSign className="size-4" />, roles: ["leadership"] },
   { to: "/people", label: "People", icon: <Users className="size-4" />, roles: ["viewer", "editor", "leadership"] },
+  { to: "/practices", label: "Practices", icon: <Network className="size-4" />, roles: ["viewer", "editor", "leadership"] },
   { to: "/clients", label: "Clients", icon: <Building2 className="size-4" />, roles: ["viewer", "editor", "leadership"] },
   { to: "/projects", label: "Projects", icon: <Briefcase className="size-4" />, roles: ["viewer", "editor", "leadership"] },
   { to: "/audit", label: "Audit Log", icon: <ScrollText className="size-4" />, roles: ["leadership"] },

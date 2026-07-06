@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/auth";
 import { currentWeekStart, mondayOf, shiftWeeks, weekLabel, weekRange } from "@/lib/weeks";
 import type { Person, Project } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,8 @@ import { cn } from "@/lib/utils";
 type WeekBucket = { committed: number; pipeline: number; committedProjects: string[]; pipelineProjects: string[] };
 
 export default function UtilizationTrackerPage() {
+  const { me, hasRole } = useAuth();
+  const viewerOnly = !hasRole("editor") && !hasRole("leadership");
   const [weekStart, setWeekStart] = useState(currentWeekStart());
   const [weeks, setWeeks] = useState(12);
   const [practice, setPractice] = useState("all");
@@ -38,9 +41,10 @@ export default function UtilizationTrackerPage() {
   }, [peopleQuery.data]);
 
   const people = useMemo(() => {
-    const all = peopleQuery.data ?? [];
+    let all = peopleQuery.data ?? [];
+    if (viewerOnly) all = all.filter((p) => p.personId === me?.oid);
     return practice === "all" ? all : all.filter((p) => p.practice === practice);
-  }, [peopleQuery.data, practice]);
+  }, [peopleQuery.data, practice, viewerOnly, me?.oid]);
 
   // index[personId][weekStart] -> { committed, pipeline }
   const index = useMemo(() => {

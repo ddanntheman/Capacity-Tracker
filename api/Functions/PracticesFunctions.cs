@@ -115,7 +115,7 @@ public class PracticesFunctions(CapacityDbContext db, RequestAuthorizer auth, Au
             return new BadRequestObjectResult(new { error = "DefaultUtilizationTarget must be 0-100." });
         }
 
-        var practice = await db.Practices.FirstOrDefaultAsync(p => p.PracticeId == id);
+        var practice = await db.Practices.AsNoTracking().FirstOrDefaultAsync(p => p.PracticeId == id);
         if (practice is null)
         {
             return new NotFoundResult();
@@ -131,24 +131,28 @@ public class PracticesFunctions(CapacityDbContext db, RequestAuthorizer auth, Au
         var strategy = db.Database.CreateExecutionStrategy();
         await strategy.ExecuteAsync(async () =>
         {
+            // Reset tracked state and re-fetch so each retry attempt starts from the persisted row.
+            db.ChangeTracker.Clear();
             await using var tx = await db.Database.BeginTransactionAsync();
 
-            if (!string.Equals(practice.Name, newName, StringComparison.Ordinal))
+            var tracked = await db.Practices.FirstAsync(p => p.PracticeId == id);
+            if (!string.Equals(tracked.Name, newName, StringComparison.Ordinal))
             {
                 // Keep people linked to the renamed practice.
-                await db.People.Where(p => p.Practice == practice.Name)
+                await db.People.Where(p => p.Practice == tracked.Name)
                     .ExecuteUpdateAsync(s => s.SetProperty(p => p.Practice, newName));
             }
 
-            var before = Snapshot(practice);
-            practice.Name = newName;
-            practice.LeadId = body.LeadId;
-            practice.DefaultUtilizationTarget = body.DefaultUtilizationTarget;
-            practice.IsArchived = body.IsArchived ?? practice.IsArchived;
+            var before = Snapshot(tracked);
+            tracked.Name = newName;
+            tracked.LeadId = body.LeadId;
+            tracked.DefaultUtilizationTarget = body.DefaultUtilizationTarget;
+            tracked.IsArchived = body.IsArchived ?? tracked.IsArchived;
 
-            audit.RecordDiff(nameof(Practice), id.ToString(), before, Snapshot(practice), result.User!.Oid);
+            audit.RecordDiff(nameof(Practice), id.ToString(), before, Snapshot(tracked), result.User!.Oid);
             await db.SaveChangesAsync();
             await tx.CommitAsync();
+            practice = tracked;
         });
 
         var headcount = await db.People.CountAsync(p => p.IsActive && p.Practice == practice.Name);
@@ -176,8 +180,8 @@ public class PracticesFunctions(CapacityDbContext db, RequestAuthorizer auth, Au
             return new BadRequestObjectResult(new { error = "Cannot merge a practice into itself." });
         }
 
-        var source = await db.Practices.FirstOrDefaultAsync(p => p.PracticeId == id);
-        var target = await db.Practices.FirstOrDefaultAsync(p => p.PracticeId == body.TargetPracticeId);
+        var source = await db.Practices.AsNoTracking().FirstOrDefaultAsync(p => p.PracticeId == id);
+        var target = await db.Practices.AsNoTracking().FirstOrDefaultAsync(p => p.PracticeId == body.TargetPracticeId);
         if (source is null || target is null)
         {
             return new NotFoundResult();
@@ -186,14 +190,21 @@ public class PracticesFunctions(CapacityDbContext db, RequestAuthorizer auth, Au
         var strategy = db.Database.CreateExecutionStrategy();
         await strategy.ExecuteAsync(async () =>
         {
+            // Reset tracked state and re-fetch so each retry attempt starts from the persisted rows.
+            db.ChangeTracker.Clear();
             await using var tx = await db.Database.BeginTransactionAsync();
 
-            await db.People.Where(p => p.Practice == source.Name)
-                .ExecuteUpdateAsync(s => s.SetProperty(p => p.Practice, target.Name));
-            db.Practices.Remove(source);
+            var trackedSource = await db.Practices.FirstOrDefaultAsync(p => p.PracticeId == id);
+            if (trackedSource is not null)
+            {
+                await db.People.Where(p => p.Practice == trackedSource.Name)
+                    .ExecuteUpdateAsync(s => s.SetProperty(p => p.Practice, target.Name));
+                db.Practices.Remove(trackedSource);
 
-            audit.Record(nameof(Practice), id.ToString(), "merged", source.Name, target.Name, result.User!.Oid);
-            await db.SaveChangesAsync();
+                audit.Record(nameof(Practice), id.ToString(), "merged", trackedSource.Name, target.Name, result.User!.Oid);
+                await db.SaveChangesAsync();
+            }
+
             await tx.CommitAsync();
         });
 

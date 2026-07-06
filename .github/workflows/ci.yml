@@ -15,9 +15,9 @@ jobs:
     name: API (.NET) Build & Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: '8.0.x'
 
@@ -34,7 +34,6 @@ jobs:
         run: |
           dotnet test api/CapacityTracker.Api.Tests/CapacityTracker.Api.Tests.csproj \
             --configuration Release \
-            --no-build \
             --collect:"XPlat Code Coverage" \
             --results-directory ./coverage
         # Coverage floor can be verified via coverlet threshold or custom scripts
@@ -46,9 +45,9 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
           cache: npm
@@ -73,7 +72,7 @@ jobs:
     name: Bicep Validate & IaC Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Bicep build
         run: |
@@ -82,7 +81,7 @@ jobs:
           az bicep build-params --file infra/main.prod.bicepparam --outfile /tmp/prod.params.json
 
       - name: Run Checkov (IaC Scan)
-        uses: bridgecrewio/checkov-action@master
+        uses: bridgecrewio/checkov-action@a7683e7b72a04503521247973281ec8142e1ac1f # master
         with:
           directory: infra
           framework: bicep
@@ -95,7 +94,7 @@ jobs:
     container:
       image: returntocorp/semgrep
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - name: Semgrep Scan
         run: semgrep scan --config auto --error
 
@@ -103,11 +102,11 @@ jobs:
     name: Secret Scanning (Gitleaks)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0 # fetch all history for deep scanning
       - name: Gitleaks Scan
-        uses: gitleaks/gitleaks-action@v3
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -117,12 +116,12 @@ jobs:
     name: Container Vulnerability Scan (Trivy)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       # Note: Trivy is prepared here for any future container builds.
       # Since we deploy directly to Azure App Service / Static Web Apps,
       # we run Trivy filesystem scan as a compliance baseline.
       - name: Trivy Filesystem Scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@c07df6fec6fa692e6fd1200d50aaa1fdd66f03c8 # master
         with:
           scan-type: 'fs'
           ignore-unfixed: true

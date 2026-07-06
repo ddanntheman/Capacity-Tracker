@@ -18,5 +18,5 @@ public class Person
 
     public bool IsActive { get; set; } = true;
 
-    public ICollection<Allocation> Allocations { get; set; } = new List<Allocation>();
+    public ICollection<Allocation> Allocations { get; set; } = [];
 }

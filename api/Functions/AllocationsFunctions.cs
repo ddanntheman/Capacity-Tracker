@@ -26,7 +26,11 @@ public class AllocationsFunctions(CapacityDbContext db, RequestAuthorizer auth, 
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "allocations")] HttpRequest req)
     {
         var result = auth.Authorize(req, AppRoles.Viewer, AppRoles.Editor, AppRoles.Leadership);
-        if (!result.Allowed) return result.Error!;
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
+
         var user = result.User!;
 
         if (!TryParseWeek(req.Query["weekStart"], out var weekStart))
@@ -58,10 +62,17 @@ public class AllocationsFunctions(CapacityDbContext db, RequestAuthorizer auth, 
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "allocations")] HttpRequest req)
     {
         var result = auth.Authorize(req, AppRoles.Editor);
-        if (!result.Allowed) return Http(result.Error!);
+        if (!result.Allowed)
+        {
+            return Http(result.Error!);
+        }
 
         var body = await req.ReadFromJsonAsync<UpsertAllocationRequest>();
-        if (body is null) return Http(new BadRequestResult());
+        if (body is null)
+        {
+            return Http(new BadRequestResult());
+        }
+
         if (body.PercentAllocated is < 0 or > MaxPercent)
         {
             return Http(new BadRequestObjectResult(new { error = $"PercentAllocated must be between 0 and {MaxPercent}." }));
@@ -73,8 +84,15 @@ public class AllocationsFunctions(CapacityDbContext db, RequestAuthorizer auth, 
 
         var personExists = await db.People.AnyAsync(p => p.PersonId == body.PersonId && p.IsActive);
         var projectOpen = await db.Projects.AnyAsync(p => p.ProjectId == body.ProjectId && p.Status != ProjectStatus.Closed);
-        if (!personExists) return Http(new BadRequestObjectResult(new { error = "Unknown or inactive person." }));
-        if (!projectOpen) return Http(new BadRequestObjectResult(new { error = "Project is closed or does not exist." }));
+        if (!personExists)
+        {
+            return Http(new BadRequestObjectResult(new { error = "Unknown or inactive person." }));
+        }
+
+        if (!projectOpen)
+        {
+            return Http(new BadRequestObjectResult(new { error = "Project is closed or does not exist." }));
+        }
 
         var existing = await db.Allocations.FirstOrDefaultAsync(a =>
             a.PersonId == body.PersonId && a.ProjectId == body.ProjectId && a.WeekStart == weekStart);
@@ -82,7 +100,11 @@ public class AllocationsFunctions(CapacityDbContext db, RequestAuthorizer auth, 
         // A zero percent upsert removes the row.
         if (body.PercentAllocated == 0)
         {
-            if (existing is null) return Http(new NoContentResult());
+            if (existing is null)
+            {
+                return Http(new NoContentResult());
+            }
+
             db.Allocations.Remove(existing);
             audit.Record(nameof(Allocation), existing.AllocationId.ToString(), nameof(Allocation.PercentAllocated), existing.PercentAllocated.ToString(), "0 (removed)", result.User!.Oid);
             await db.SaveChangesAsync();
@@ -135,10 +157,16 @@ public class AllocationsFunctions(CapacityDbContext db, RequestAuthorizer auth, 
         [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "allocations/{id:guid}")] HttpRequest req, Guid id)
     {
         var result = auth.Authorize(req, AppRoles.Editor);
-        if (!result.Allowed) return Http(result.Error!);
+        if (!result.Allowed)
+        {
+            return Http(result.Error!);
+        }
 
         var allocation = await db.Allocations.FirstOrDefaultAsync(a => a.AllocationId == id);
-        if (allocation is null) return Http(new NotFoundResult());
+        if (allocation is null)
+        {
+            return Http(new NotFoundResult());
+        }
 
         db.Allocations.Remove(allocation);
         audit.Record(nameof(Allocation), id.ToString(), nameof(Allocation.PercentAllocated), allocation.PercentAllocated.ToString(), "0 (removed)", result.User!.Oid);

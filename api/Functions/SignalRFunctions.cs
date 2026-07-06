@@ -19,7 +19,11 @@ public class SignalRFunctions(RequestAuthorizer auth)
         [SignalRConnectionInfoInput(HubName = Realtime.Realtime.HubName)] SignalRConnectionInfo connectionInfo)
     {
         var result = auth.Authorize(req, AppRoles.Viewer, AppRoles.Editor, AppRoles.Leadership);
-        if (!result.Allowed) return result.Error!;
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
+
         return new OkObjectResult(connectionInfo);
     }
 
@@ -38,7 +42,10 @@ public class SignalRFunctions(RequestAuthorizer auth)
     private async Task<GroupActionOutput> ChangeGroups(HttpRequest req, SignalRGroupActionType actionType)
     {
         var result = auth.Authorize(req, AppRoles.Viewer, AppRoles.Editor, AppRoles.Leadership);
-        if (!result.Allowed) return new GroupActionOutput { HttpResponse = result.Error! };
+        if (!result.Allowed)
+        {
+            return new GroupActionOutput { HttpResponse = result.Error! };
+        }
 
         var body = await req.ReadFromJsonAsync<GroupSubscriptionRequest>();
         if (body is null || string.IsNullOrWhiteSpace(body.ConnectionId) || body.WeekStarts is null || body.WeekStarts.Count == 0)

@@ -17,12 +17,18 @@ public class ProjectsFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "projects")] HttpRequest req)
     {
         var result = auth.Authorize(req, AppRoles.Viewer, AppRoles.Editor, AppRoles.Leadership);
-        if (!result.Allowed) return result.Error!;
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
 
         // The allocation picker only shows active + pipeline projects.
         var pickerOnly = req.Query["picker"] == "true";
         var query = db.Projects.AsNoTracking().AsQueryable();
-        if (pickerOnly) query = query.Where(p => p.Status != ProjectStatus.Closed);
+        if (pickerOnly)
+        {
+            query = query.Where(p => p.Status != ProjectStatus.Closed);
+        }
 
         var projects = await query
             .OrderBy(p => p.ClientName).ThenBy(p => p.ProjectName)
@@ -35,7 +41,10 @@ public class ProjectsFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "projects")] HttpRequest req)
     {
         var result = auth.Authorize(req, AppRoles.Editor);
-        if (!result.Allowed) return result.Error!;
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
 
         var body = await req.ReadFromJsonAsync<CreateProjectRequest>();
         if (body is null || string.IsNullOrWhiteSpace(body.ClientName) || string.IsNullOrWhiteSpace(body.ProjectName))
@@ -67,7 +76,10 @@ public class ProjectsFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
         [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "projects/{id:guid}")] HttpRequest req, Guid id)
     {
         var result = auth.Authorize(req, AppRoles.Editor);
-        if (!result.Allowed) return result.Error!;
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
 
         var body = await req.ReadFromJsonAsync<UpdateProjectRequest>();
         if (body is null || string.IsNullOrWhiteSpace(body.ClientName) || string.IsNullOrWhiteSpace(body.ProjectName))
@@ -80,7 +92,10 @@ public class ProjectsFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
         }
 
         var project = await db.Projects.FirstOrDefaultAsync(p => p.ProjectId == id);
-        if (project is null) return new NotFoundResult();
+        if (project is null)
+        {
+            return new NotFoundResult();
+        }
 
         var before = Snapshot(project);
         project.ClientName = body.ClientName.Trim();
@@ -99,10 +114,16 @@ public class ProjectsFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "projects/{id:guid}/archive")] HttpRequest req, Guid id)
     {
         var result = auth.Authorize(req, AppRoles.Editor);
-        if (!result.Allowed) return result.Error!;
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
 
         var project = await db.Projects.FirstOrDefaultAsync(p => p.ProjectId == id);
-        if (project is null) return new NotFoundResult();
+        if (project is null)
+        {
+            return new NotFoundResult();
+        }
 
         var old = project.Status;
         project.Status = ProjectStatus.Closed;

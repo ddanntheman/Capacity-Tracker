@@ -17,11 +17,17 @@ public class PeopleFunctions(CapacityDbContext db, RequestAuthorizer auth, Audit
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "people")] HttpRequest req)
     {
         var result = auth.Authorize(req, AppRoles.Viewer, AppRoles.Editor, AppRoles.Leadership);
-        if (!result.Allowed) return result.Error!;
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
 
         var includeInactive = req.Query["includeInactive"] == "true";
         var query = db.People.AsNoTracking().OrderBy(p => p.DisplayName).AsQueryable();
-        if (!includeInactive) query = query.Where(p => p.IsActive);
+        if (!includeInactive)
+        {
+            query = query.Where(p => p.IsActive);
+        }
 
         var people = await query.Select(p => PersonDto.From(p)).ToListAsync();
         return new OkObjectResult(people);
@@ -32,7 +38,10 @@ public class PeopleFunctions(CapacityDbContext db, RequestAuthorizer auth, Audit
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "people/{id:guid}")] HttpRequest req, Guid id)
     {
         var result = auth.Authorize(req, AppRoles.Viewer, AppRoles.Editor, AppRoles.Leadership);
-        if (!result.Allowed) return result.Error!;
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
 
         var person = await db.People.AsNoTracking().FirstOrDefaultAsync(p => p.PersonId == id);
         return person is null ? new NotFoundResult() : new OkObjectResult(PersonDto.From(person));
@@ -43,7 +52,10 @@ public class PeopleFunctions(CapacityDbContext db, RequestAuthorizer auth, Audit
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "people")] HttpRequest req)
     {
         var result = auth.Authorize(req, AppRoles.Editor);
-        if (!result.Allowed) return result.Error!;
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
 
         var body = await req.ReadFromJsonAsync<CreatePersonRequest>();
         if (body is null || string.IsNullOrWhiteSpace(body.DisplayName) || string.IsNullOrWhiteSpace(body.Email))
@@ -72,7 +84,10 @@ public class PeopleFunctions(CapacityDbContext db, RequestAuthorizer auth, Audit
         [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "people/{id:guid}")] HttpRequest req, Guid id)
     {
         var result = auth.Authorize(req, AppRoles.Editor);
-        if (!result.Allowed) return result.Error!;
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
 
         var body = await req.ReadFromJsonAsync<UpdatePersonRequest>();
         if (body is null || string.IsNullOrWhiteSpace(body.DisplayName) || string.IsNullOrWhiteSpace(body.Email))
@@ -81,7 +96,10 @@ public class PeopleFunctions(CapacityDbContext db, RequestAuthorizer auth, Audit
         }
 
         var person = await db.People.FirstOrDefaultAsync(p => p.PersonId == id);
-        if (person is null) return new NotFoundResult();
+        if (person is null)
+        {
+            return new NotFoundResult();
+        }
 
         var before = Snapshot(person);
         person.DisplayName = body.DisplayName.Trim();
@@ -100,11 +118,21 @@ public class PeopleFunctions(CapacityDbContext db, RequestAuthorizer auth, Audit
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "people/{id:guid}/deactivate")] HttpRequest req, Guid id)
     {
         var result = auth.Authorize(req, AppRoles.Editor);
-        if (!result.Allowed) return result.Error!;
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
 
         var person = await db.People.FirstOrDefaultAsync(p => p.PersonId == id);
-        if (person is null) return new NotFoundResult();
-        if (!person.IsActive) return new OkObjectResult(PersonDto.From(person));
+        if (person is null)
+        {
+            return new NotFoundResult();
+        }
+
+        if (!person.IsActive)
+        {
+            return new OkObjectResult(PersonDto.From(person));
+        }
 
         person.IsActive = false;
         audit.Record(nameof(Person), id.ToString(), nameof(Person.IsActive), "true", "false", result.User!.Oid);

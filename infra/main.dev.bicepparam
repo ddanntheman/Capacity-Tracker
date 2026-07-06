@@ -14,5 +14,9 @@ param groupViewer = '868a8332-9063-4b99-b3e3-b110ba0dc94f'
 param groupEditor = '019aea9f-0d64-455f-9769-b2a9932e9047'
 param groupLeadership = '45576da9-f586-4fd2-909b-c1eb92a59455'
 
+// The default vault name is reserved by a soft-deleted vault (purge protection)
+// from a failed first deployment, so dev uses an explicit name.
+param keyVaultNameOverride = 'kv-cap-dev-tfoikuh'
+
 // Dev keeps public network access enabled; no VNet/private endpoints.
 param deployPrivateEndpoints = false

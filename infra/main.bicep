@@ -39,6 +39,9 @@ param signalRPrivateDnsZoneId string = ''
 param keyVaultPrivateDnsZoneId string = ''
 param blobPrivateDnsZoneId string = ''
 
+@description('Override for the Key Vault name (e.g. when the default name is stuck in a soft-deleted vault). Empty uses the default naming convention.')
+param keyVaultNameOverride string = ''
+
 var namePrefix = 'cap-${environment}'
 var uniquePart = uniqueString(subscription().id, namePrefix)
 var tags = {
@@ -79,7 +82,7 @@ module keyVault 'modules/keyvault.bicep' = {
   scope: rg
   params: {
     location: location
-    keyVaultName: 'kv-${namePrefix}-${take(uniquePart, 7)}'
+    keyVaultName: !empty(keyVaultNameOverride) ? keyVaultNameOverride : 'kv-${namePrefix}-${take(uniquePart, 6)}'
     tags: tags
     tenantId: tenantId
     publicNetworkAccessDisabled: deployPrivateEndpoints

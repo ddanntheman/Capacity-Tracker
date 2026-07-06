@@ -264,14 +264,14 @@ WHERE s.[PersonId] = {sourceId} AND EXISTS (
 
         await db.Database.ExecuteSqlInterpolatedAsync($@"
 UPDATE t SET t.[ChargeableHours] = t.[ChargeableHours] + s.[ChargeableHours]
-FROM [ActualHours] t
-JOIN [ActualHours] s ON s.[PersonId] = {sourceId}
+FROM [Actuals] t
+JOIN [Actuals] s ON s.[PersonId] = {sourceId}
  AND t.[PersonId] = {targetId}
  AND s.[Month] = t.[Month]");
         await db.Database.ExecuteSqlInterpolatedAsync($@"
-DELETE s FROM [ActualHours] s
+DELETE s FROM [Actuals] s
 WHERE s.[PersonId] = {sourceId} AND EXISTS (
-    SELECT 1 FROM [ActualHours] t
+    SELECT 1 FROM [Actuals] t
     WHERE t.[PersonId] = {targetId} AND t.[Month] = s.[Month])");
         await db.Actuals.Where(a => a.PersonId == sourceId)
             .ExecuteUpdateAsync(s => s.SetProperty(a => a.PersonId, targetId));

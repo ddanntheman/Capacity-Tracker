@@ -9,6 +9,8 @@ import PersonProfilePage from "@/pages/PersonProfilePage";
 import ProjectsPage from "@/pages/ProjectsPage";
 import AllocationsPage from "@/pages/AllocationsPage";
 import AuditPage from "@/pages/AuditPage";
+import UtilizationTrackerPage from "@/pages/UtilizationTrackerPage";
+import ResourceSummaryPage from "@/pages/ResourceSummaryPage";
 
 export default function App() {
   const { me, isLoading, error } = useAuth();
@@ -64,6 +66,22 @@ export default function App() {
           element={
             <RequireRole roles={["viewer", "editor", "leadership"]}>
               <AllocationsPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/utilization"
+          element={
+            <RequireRole roles={["viewer", "editor", "leadership"]}>
+              <UtilizationTrackerPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/resource-summary"
+          element={
+            <RequireRole roles={["leadership"]}>
+              <ResourceSummaryPage />
             </RequireRole>
           }
         />

@@ -22,7 +22,7 @@ public record AllocationChange(
     Guid PersonId,
     Guid ProjectId,
     string WeekStart,
-    int PercentAllocated);
+    decimal Hours);
 
 /// <summary>
 /// Multi-output result for allocation writes: the HTTP response plus the SignalR

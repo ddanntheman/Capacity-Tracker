@@ -88,12 +88,12 @@ public record CreateProjectRequest(string ClientName, string ProjectName, DateOn
 public record UpdateProjectRequest(string ClientName, string ProjectName, DateOnly StartDate, DateOnly? EndDate, string Status);
 
 // Allocations
-public record AllocationDto(Guid AllocationId, Guid PersonId, Guid ProjectId, DateOnly WeekStart, int PercentAllocated)
+public record AllocationDto(Guid AllocationId, Guid PersonId, Guid ProjectId, DateOnly WeekStart, decimal Hours)
 {
-    public static AllocationDto From(Allocation a) => new(a.AllocationId, a.PersonId, a.ProjectId, a.WeekStart, a.PercentAllocated);
+    public static AllocationDto From(Allocation a) => new(a.AllocationId, a.PersonId, a.ProjectId, a.WeekStart, a.Hours);
 }
 
-public record UpsertAllocationRequest(Guid PersonId, Guid ProjectId, DateOnly WeekStart, int PercentAllocated);
+public record UpsertAllocationRequest(Guid PersonId, Guid ProjectId, DateOnly WeekStart, decimal Hours);
 
 // Identity
 public record MeDto(Guid Oid, string DisplayName, string Email, IEnumerable<string> Roles);

@@ -26,6 +26,7 @@ export default function DashboardPage() {
   const [drill, setDrill] = useState<{ id: string; name: string } | null>(null);
   const [statDrill, setStatDrill] = useState<StatDrill | null>(null);
   const [weekDrill, setWeekDrill] = useState<string | null>(null);
+  const [showAllAlerts, setShowAllAlerts] = useState(false);
 
   const summary = useQuery({ queryKey: ["dashboard", "summary", weekStart], queryFn: () => api.dashboardSummary(weekStart) });
   const util = useQuery({ queryKey: ["dashboard", "util", weekStart, weeks], queryFn: () => api.dashboardUtilization(weekStart, weeks) });
@@ -100,9 +101,9 @@ export default function DashboardPage() {
             </CardTitle>
             <CardDescription>Items that may need attention.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             <ul className="space-y-2 text-sm">
-              {alerts.map((a) => (
+              {(showAllAlerts ? alerts : alerts.slice(0, 5)).map((a) => (
                 <li key={a.key} className="flex items-start gap-3">
                   <Badge variant={a.severity === "over" ? "over" : "warn"} className="shrink-0">
                     {a.severity === "over" ? "Overbooked" : "Review"}
@@ -111,6 +112,15 @@ export default function DashboardPage() {
                 </li>
               ))}
             </ul>
+            {alerts.length > 5 && (
+              <button
+                type="button"
+                onClick={() => setShowAllAlerts((v) => !v)}
+                className="text-sm font-medium text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:underline"
+              >
+                {showAllAlerts ? "Show fewer" : `Show all ${alerts.length} alerts`}
+              </button>
+            )}
           </CardContent>
         </Card>
       )}
@@ -281,7 +291,7 @@ function StatDrillDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[80vh] overflow-auto">
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
@@ -360,7 +370,7 @@ function WeekDrillDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[80vh] overflow-auto">
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Week of {weekStart}</DialogTitle>
           <DialogDescription>Per-person booked hours contributing to this week's utilization.</DialogDescription>
@@ -399,7 +409,7 @@ function DrillDownDialog({ id, name, weekStart, weeks, onClose }: { id: string; 
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{name} — allocations</DialogTitle>
         </DialogHeader>

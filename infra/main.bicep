@@ -79,7 +79,7 @@ module keyVault 'modules/keyvault.bicep' = {
   scope: rg
   params: {
     location: location
-    keyVaultName: 'kv-${namePrefix}-${take(uniquePart, 6)}'
+    keyVaultName: 'kv-${namePrefix}-${take(uniquePart, 7)}'
     tags: tags
     tenantId: tenantId
     publicNetworkAccessDisabled: deployPrivateEndpoints

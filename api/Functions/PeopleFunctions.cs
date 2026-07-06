@@ -232,6 +232,7 @@ public class PeopleFunctions(CapacityDbContext db, RequestAuthorizer auth, Audit
 
                 await MovePersonReferencesAsync(db, id, target.PersonId);
                 await db.People.Where(p => p.PersonId == id).ExecuteDeleteAsync();
+                await db.Entry(target).ReloadAsync();
             }
 
             merged = target;

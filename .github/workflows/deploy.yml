@@ -11,6 +11,13 @@ on:
         description: Path to the .bicepparam file.
         required: true
         type: string
+    secrets:
+      AZURE_CLIENT_ID:
+        required: true
+      AZURE_TENANT_ID:
+        required: true
+      AZURE_SUBSCRIPTION_ID:
+        required: true
 
 permissions:
   id-token: write
@@ -22,10 +29,10 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Azure login (OIDC)
-        uses: azure/login@v2
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -36,7 +43,7 @@ jobs:
       # ---------------------------------------------------------------
       - name: Deploy infrastructure
         id: infra
-        uses: azure/cli@v3
+        uses: azure/cli@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           azcliversion: latest
           inlineScript: |
@@ -54,7 +61,7 @@ jobs:
       # 2. Database migration (idempotent SQL, Entra access token)
       # ---------------------------------------------------------------
       - name: Apply database migrations
-        uses: azure/cli@v3
+        uses: azure/cli@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           azcliversion: latest
           inlineScript: |
@@ -70,13 +77,13 @@ jobs:
       # ---------------------------------------------------------------
       # 3. Backend (Azure Functions, .NET 8 isolated)
       # ---------------------------------------------------------------
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: '8.0.x'
       - name: Publish Functions app
         run: dotnet publish api/CapacityTracker.Api.csproj -c Release -o ./api-publish
       - name: Deploy Functions app
-        uses: Azure/functions-action@v1
+        uses: Azure/functions-action@bc63708cc6539760eea18d8a7de4ce8ef5fdf593 # v1
         with:
           app-name: ${{ steps.infra.outputs.functionApp }}
           package: ./api-publish
@@ -84,7 +91,7 @@ jobs:
       # ---------------------------------------------------------------
       # 4. Frontend (build + Static Web Apps deploy)
       # ---------------------------------------------------------------
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
           cache: npm
@@ -96,7 +103,7 @@ jobs:
         working-directory: web
       - name: Get Static Web Apps deployment token
         id: swa
-        uses: azure/cli@v3
+        uses: azure/cli@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           azcliversion: latest
           inlineScript: |
@@ -107,7 +114,7 @@ jobs:
             echo "::add-mask::$token"
             echo "token=$token" >> "$GITHUB_OUTPUT"
       - name: Deploy Static Web App
-        uses: Azure/static-web-apps-deploy@v1
+        uses: Azure/static-web-apps-deploy@4d27395796ac319302594769cfe812bd207490b1 # v1
         with:
           azure_static_web_apps_api_token: ${{ steps.swa.outputs.token }}
           action: upload
@@ -120,7 +127,7 @@ jobs:
       # ---------------------------------------------------------------
       - name: Run OWASP ZAP DAST Scan
         if: inputs.environment == 'dev'
-        uses: zaproxy/action-baseline@v0.15.0
+        uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # v0.15.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           target: 'https://dev.capacitytracker.andersenconsulting.com' # Target staging URL

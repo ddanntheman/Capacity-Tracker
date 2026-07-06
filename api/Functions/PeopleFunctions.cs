@@ -181,6 +181,133 @@ public class PeopleFunctions(CapacityDbContext db, RequestAuthorizer auth, Audit
         return new OkObjectResult(PersonDto.From(person, isLeadership));
     }
 
+    /// <summary>
+    /// Merges a duplicate person into another: allocations and actuals move to the
+    /// target (hours summed where both have entries for the same project-week or
+    /// month), reporting/lead references are repointed, empty profile fields on the
+    /// target are filled from the source, and the source record is deleted.
+    /// </summary>
+    [Function("MergePerson")]
+    public async Task<IActionResult> Merge(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "people/{id:guid}/merge")] HttpRequest req, Guid id)
+    {
+        var result = auth.Authorize(req, AppRoles.Leadership);
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
+
+        var body = await req.ReadFromJsonAsync<MergePersonRequest>();
+        if (body is null || body.TargetPersonId == Guid.Empty)
+        {
+            return new BadRequestObjectResult(new { error = "TargetPersonId is required." });
+        }
+
+        if (body.TargetPersonId == id)
+        {
+            return new BadRequestObjectResult(new { error = "Cannot merge a person into themselves." });
+        }
+
+        var sourceExists = await db.People.AsNoTracking().AnyAsync(p => p.PersonId == id);
+        var targetExists = await db.People.AsNoTracking().AnyAsync(p => p.PersonId == body.TargetPersonId);
+        if (!sourceExists || !targetExists)
+        {
+            return new NotFoundResult();
+        }
+
+        Person? merged = null;
+        var strategy = db.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            db.ChangeTracker.Clear();
+            await using var tx = await db.Database.BeginTransactionAsync();
+
+            var source = await db.People.AsNoTracking().FirstOrDefaultAsync(p => p.PersonId == id);
+            var target = await db.People.FirstOrDefaultAsync(p => p.PersonId == body.TargetPersonId);
+            if (source is not null && target is not null)
+            {
+                FillMissingProfileFields(target, source);
+                audit.Record(nameof(Person), id.ToString(), "merged", source.DisplayName, target.DisplayName, result.User!.Oid);
+                await db.SaveChangesAsync();
+
+                await MovePersonReferencesAsync(db, id, target.PersonId);
+                await db.People.Where(p => p.PersonId == id).ExecuteDeleteAsync();
+            }
+
+            merged = target;
+            await tx.CommitAsync();
+        });
+
+        return merged is null
+            ? new NotFoundResult()
+            : new OkObjectResult(PersonDto.From(merged, result.User!.HasRole(AppRoles.Leadership)));
+    }
+
+    /// <summary>Repoints every reference from one person to another, summing hours on collisions.</summary>
+    internal static async Task MovePersonReferencesAsync(CapacityDbContext db, Guid sourceId, Guid targetId)
+    {
+        await db.Database.ExecuteSqlInterpolatedAsync($@"
+UPDATE t SET t.[Hours] = t.[Hours] + s.[Hours]
+FROM [Allocations] t
+JOIN [Allocations] s ON s.[PersonId] = {sourceId}
+ AND t.[PersonId] = {targetId}
+ AND s.[ProjectId] = t.[ProjectId]
+ AND s.[WeekStart] = t.[WeekStart]");
+        await db.Database.ExecuteSqlInterpolatedAsync($@"
+DELETE s FROM [Allocations] s
+WHERE s.[PersonId] = {sourceId} AND EXISTS (
+    SELECT 1 FROM [Allocations] t
+    WHERE t.[PersonId] = {targetId} AND t.[ProjectId] = s.[ProjectId] AND t.[WeekStart] = s.[WeekStart])");
+        await db.Allocations.Where(a => a.PersonId == sourceId)
+            .ExecuteUpdateAsync(s => s.SetProperty(a => a.PersonId, targetId));
+
+        await db.Database.ExecuteSqlInterpolatedAsync($@"
+UPDATE t SET t.[ChargeableHours] = t.[ChargeableHours] + s.[ChargeableHours]
+FROM [ActualHours] t
+JOIN [ActualHours] s ON s.[PersonId] = {sourceId}
+ AND t.[PersonId] = {targetId}
+ AND s.[Month] = t.[Month]");
+        await db.Database.ExecuteSqlInterpolatedAsync($@"
+DELETE s FROM [ActualHours] s
+WHERE s.[PersonId] = {sourceId} AND EXISTS (
+    SELECT 1 FROM [ActualHours] t
+    WHERE t.[PersonId] = {targetId} AND t.[Month] = s.[Month])");
+        await db.Actuals.Where(a => a.PersonId == sourceId)
+            .ExecuteUpdateAsync(s => s.SetProperty(a => a.PersonId, targetId));
+
+        await db.People.Where(p => p.ManagerId == sourceId)
+            .ExecuteUpdateAsync(s => s.SetProperty(p => p.ManagerId, targetId));
+        await db.People.Where(p => p.PersonId == targetId && p.ManagerId == targetId)
+            .ExecuteUpdateAsync(s => s.SetProperty(p => p.ManagerId, (Guid?)null));
+        await db.Practices.Where(p => p.LeadId == sourceId)
+            .ExecuteUpdateAsync(s => s.SetProperty(p => p.LeadId, targetId));
+        await db.Projects.Where(p => p.DeliveryLeadId == sourceId)
+            .ExecuteUpdateAsync(s => s.SetProperty(p => p.DeliveryLeadId, targetId));
+    }
+
+    private static void FillMissingProfileFields(Person target, Person source)
+    {
+        if (string.IsNullOrWhiteSpace(target.DisplayName) || target.DisplayName == target.Email)
+        {
+            target.DisplayName = source.DisplayName;
+        }
+        target.JobTitle ??= source.JobTitle;
+        if (target.ManagerId is null && source.ManagerId != target.PersonId)
+        {
+            target.ManagerId = source.ManagerId;
+        }
+        target.Rank ??= source.Rank;
+        target.Practice ??= source.Practice;
+        target.Location ??= source.Location;
+        target.Phone ??= source.Phone;
+        target.StartDate ??= source.StartDate;
+        target.CostRate ??= source.CostRate;
+        target.BillRate ??= source.BillRate;
+        target.UtilizationTarget ??= source.UtilizationTarget;
+        target.Skills ??= source.Skills;
+        target.Notes ??= source.Notes;
+    }
+
     private static bool IsValidTarget(int? target) => target is null or (>= 0 and <= 100);
 
     private static bool IsValidCapacity(int? hours) => hours is null or (>= 1 and <= 80);

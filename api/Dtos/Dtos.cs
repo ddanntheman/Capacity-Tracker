@@ -148,6 +148,8 @@ public record UpsertPracticeRequest(string Name, Guid? LeadId, int? DefaultUtili
 
 public record MergePracticeRequest(Guid TargetPracticeId);
 
+public record MergePersonRequest(Guid TargetPersonId);
+
 // Actuals
 public record ActualHoursDto(Guid ActualHoursId, Guid PersonId, DateOnly Month, decimal ChargeableHours)
 {

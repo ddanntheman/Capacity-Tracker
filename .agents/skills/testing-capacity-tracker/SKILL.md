@@ -36,5 +36,13 @@ The deployed Static Web App (https://salmon-desert-092eaec10.7.azurestaticapps.n
 - Cleanup via SQL works with `sqlcmd -S sql-cap-dev-tfoiku.database.windows.net -d capacity --authentication-method ActiveDirectoryDefault -Q "..."` (uses the az session).
 - Data written during testing goes to the real dev DB — record what you changed (allocations, rates, actuals) in the test report so it can be reverted.
 
+## Live site failing but local passing? Check for stale deployment
+- The GitHub "Deploy Dev" workflow only triggers on pushes to `develop`, but merges land on the default branch — the live dev site can silently fall behind merged code.
+- Compare the Function App's last deploy time vs the merge time: `az functionapp show -n func-cap-dev-tfoiku -g rg-capacity-dev --query lastModifiedTimeUtc` (or Kudu `/api/deployments`) against `git log -1 --format=%cI` on the default branch.
+- Redeploy API: `dotnet publish -c Release -o /tmp/apipub && (cd /tmp/apipub && zip -qr /tmp/api.zip .) && az functionapp deployment source config-zip -n func-cap-dev-tfoiku -g rg-capacity-dev --src /tmp/api.zip`.
+- Redeploy web: `cd web && npm run build && npx @azure/static-web-apps-cli deploy ./dist --deployment-token $(az staticwebapp secrets list -n swa-cap-dev-tfoiku -g rg-capacity-dev -o tsv --query properties.apiKey) --env production`.
+- Direct calls to the Function App host 401 (SWA-linked backend); test via the SWA or locally instead.
+- `az monitor app-insights` commands may hang for minutes on first use (extension install); use `timeout` and answer the install prompt.
+
 ## Devin Secrets Needed
 - Azure access via `az login` device code (user-provided interactively); no stored secret. The SQL connection uses Entra auth from the az session.

@@ -34,11 +34,12 @@ export default function UtilizationTrackerPage() {
   const { me, hasRole } = useAuth();
   const viewerOnly = !hasRole("editor") && !hasRole("leadership");
   const [weekStart, setWeekStart] = useState(currentWeekStart());
-  const filters = useUrlFilters({ q: "", practice: "all", weeks: "12", person: "" });
+  const filters = useUrlFilters({ q: "", practice: "all", weeks: "12", person: "", view: "detail" });
   const search = useSearchText(filters);
   const q = search.text;
   const practice = filters.get("practice");
   const weeks = Number(filters.get("weeks")) || 12;
+  const view = filters.get("view") === "heatmap" ? "heatmap" : "detail";
   const visibleWeeks = useMemo(() => weekRange(weekStart, weeks), [weekStart, weeks]);
 
   const peopleQuery = useQuery({ queryKey: ["people", false], queryFn: () => api.listPeople(false) });
@@ -186,6 +187,24 @@ export default function UtilizationTrackerPage() {
           <Button variant="outline" size="sm" onClick={exportCsv} disabled={loading}>
             <Download className="mr-1 size-4" /> Export CSV
           </Button>
+          <div className="flex rounded-md border" role="group" aria-label="Grid view">
+            <Button
+              variant={view === "detail" ? "secondary" : "ghost"}
+              size="sm"
+              className="rounded-r-none"
+              onClick={() => filters.set("view", "detail")}
+            >
+              Detail
+            </Button>
+            <Button
+              variant={view === "heatmap" ? "secondary" : "ghost"}
+              size="sm"
+              className="rounded-l-none"
+              onClick={() => filters.set("view", "heatmap")}
+            >
+              Heatmap
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -196,7 +215,7 @@ export default function UtilizationTrackerPage() {
               <thead className="sticky top-0 z-20 bg-[var(--color-card)]">
                 <tr>
                   <th className="sticky left-0 z-30 bg-[var(--color-card)] p-2 text-left font-medium">Person</th>
-                  <th className="sticky left-40 z-30 bg-[var(--color-card)] p-2 text-left font-medium"> </th>
+                  {view === "detail" && <th className="sticky left-40 z-30 bg-[var(--color-card)] p-2 text-left font-medium"> </th>}
                   {visibleWeeks.map((w) => (
                     <th key={w} className="min-w-16 p-2 text-center font-medium text-[var(--color-muted-foreground)]">
                       {weekLabel(w)}
@@ -208,15 +227,16 @@ export default function UtilizationTrackerPage() {
                 {loading &&
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i}>
-                      <td className="p-2" colSpan={visibleWeeks.length + 2}>
+                      <td className="p-2" colSpan={visibleWeeks.length + (view === "detail" ? 2 : 1)}>
                         <Skeleton className="h-12 w-full" />
                       </td>
                     </tr>
                   ))}
-                {!loading && people.length > 0 && (
+                {!loading && people.length > 0 && view === "detail" && (
                   <TeamTotalsRows weeks={visibleWeeks} totals={weekTotals} />
                 )}
                 {!loading &&
+                  view === "detail" &&
                   people.map((person) => (
                     <PersonRows
                       key={person.personId}
@@ -226,9 +246,20 @@ export default function UtilizationTrackerPage() {
                       onOpen={() => filters.set("person", person.personId)}
                     />
                   ))}
+                {!loading &&
+                  view === "heatmap" &&
+                  people.map((person) => (
+                    <HeatmapRow
+                      key={person.personId}
+                      person={person}
+                      weeks={visibleWeeks}
+                      byWeek={index.get(person.personId)}
+                      onOpen={() => filters.set("person", person.personId)}
+                    />
+                  ))}
                 {!loading && people.length === 0 && (
                   <tr>
-                    <td colSpan={visibleWeeks.length + 2} className="p-6 text-center text-[var(--color-muted-foreground)]">
+                    <td colSpan={visibleWeeks.length + (view === "detail" ? 2 : 1)} className="p-6 text-center text-[var(--color-muted-foreground)]">
                       No people to display.
                     </td>
                   </tr>
@@ -237,9 +268,14 @@ export default function UtilizationTrackerPage() {
             </table>
           </div>
           <div className="mt-4 flex flex-wrap gap-4 text-xs text-[var(--color-muted-foreground)]">
-            <span className="flex items-center gap-1"><Badge variant="ok">C</Badge> committed (won/sold work)</span>
-            <span className="flex items-center gap-1"><Badge variant="warn">P</Badge> pipeline (likely to close)</span>
-            <span className="flex items-center gap-1"><Badge variant="secondary">A</Badge> available (capacity − C − P)</span>
+            {view === "detail" && (
+              <>
+                <span className="flex items-center gap-1"><Badge variant="ok">C</Badge> committed (won/sold work)</span>
+                <span className="flex items-center gap-1"><Badge variant="warn">P</Badge> pipeline (likely to close)</span>
+                <span className="flex items-center gap-1"><Badge variant="secondary">A</Badge> available (capacity − C − P)</span>
+              </>
+            )}
+            {view === "heatmap" && <span>Each cell shows free hours (capacity − committed − pipeline).</span>}
             <span className="flex items-center gap-2">
               <span className={cn("inline-block size-3 rounded", rygCellClass.ok)} /> &gt;8h free
               <span className={cn("inline-block size-3 rounded", rygCellClass.warn)} /> 0–8h free
@@ -463,6 +499,57 @@ function TeamTotalsRows({
         </tr>
       ))}
     </>
+  );
+}
+
+function HeatmapRow({
+  person,
+  weeks,
+  byWeek,
+  onOpen,
+}: {
+  person: Person;
+  weeks: string[];
+  byWeek: Map<string, WeekBucket> | undefined;
+  onOpen: () => void;
+}) {
+  const capacity = person.weeklyCapacityHours || 40;
+  return (
+    <tr className="border-t">
+      <td className="sticky left-0 z-10 bg-[var(--color-card)] p-2 font-medium">
+        <button type="button" onClick={onOpen} className="text-left hover:underline">
+          {person.displayName}
+        </button>
+        <div className="text-xs font-normal text-[var(--color-muted-foreground)]">
+          {[person.rank, person.practice].filter(Boolean).join(" · ")}
+        </div>
+      </td>
+      {weeks.map((w) => {
+        const bucket = byWeek?.get(w);
+        const committed = bucket?.committed ?? 0;
+        const pipeline = bucket?.pipeline ?? 0;
+        const free = capacity - committed - pipeline;
+        const title = [
+          `Committed ${committed}h`,
+          `Pipeline ${pipeline}h`,
+          ...(bucket?.committedProjects ?? []),
+          ...(bucket?.pipelineProjects ?? []),
+        ].join("\n");
+        return (
+          <td
+            key={w}
+            title={title}
+            className={cn(
+              "p-1 text-center tabular-nums",
+              rygCellClass[availabilityStatus(free)],
+              free < 0 && "font-medium",
+            )}
+          >
+            {free}
+          </td>
+        );
+      })}
+    </tr>
   );
 }
 

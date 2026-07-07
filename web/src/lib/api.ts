@@ -98,6 +98,13 @@ export const api = {
   upsertAllocation: (body: { personId: string; projectId: string; weekStart: string; hours: number }) =>
     request<AllocationWriteResult>("/allocations", { method: "POST", body: JSON.stringify(body) }),
   deleteAllocation: (id: string) => request<AllocationWriteResult>(`/allocations/${id}`, { method: "DELETE" }),
+  rangeUpsertAllocations: (body: {
+    personId: string;
+    projectId: string;
+    weekStart: string;
+    weeks: number;
+    hoursPerWeek: number;
+  }) => request<Allocation[]>("/allocations/range", { method: "POST", body: JSON.stringify(body) }),
 
   dashboardSummary: (weekStart?: string) =>
     request<DashboardSummary>(`/dashboard/summary${weekStart ? `?weekStart=${weekStart}` : ""}`),

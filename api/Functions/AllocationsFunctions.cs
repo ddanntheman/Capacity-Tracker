@@ -142,6 +142,98 @@ public class AllocationsFunctions(CapacityDbContext db, RequestAuthorizer auth, 
         return Broadcast(existing is null ? "created" : "updated", allocation, newTotal, person.WeeklyCapacityHours);
     }
 
+    /// <summary>
+    /// Staffs a person on a project across a run of weeks at a constant
+    /// hours/week, replacing any existing rows for those weeks. Zero hours
+    /// clears the range.
+    /// </summary>
+    [Function("RangeUpsertAllocations")]
+    public async Task<IActionResult> RangeUpsert(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "allocations/range")] HttpRequest req)
+    {
+        var result = auth.Authorize(req, AppRoles.Editor);
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
+
+        var body = await req.ReadFromJsonAsync<RangeUpsertAllocationRequest>();
+        if (body is null)
+        {
+            return new BadRequestResult();
+        }
+
+        if (body.Weeks is < 1 or > 52)
+        {
+            return new BadRequestObjectResult(new { error = "Weeks must be between 1 and 52." });
+        }
+
+        if (body.HoursPerWeek is < 0 or > MaxWeeklyHours)
+        {
+            return new BadRequestObjectResult(new { error = $"Hours must be between 0 and {MaxWeeklyHours}." });
+        }
+
+        var person = await db.People.AsNoTracking().FirstOrDefaultAsync(p => p.PersonId == body.PersonId && p.IsActive);
+        if (person is null)
+        {
+            return new BadRequestObjectResult(new { error = "Unknown or inactive person." });
+        }
+
+        var projectOpen = await db.Projects.AnyAsync(p => p.ProjectId == body.ProjectId && p.Status != ProjectStatus.Closed);
+        if (!projectOpen)
+        {
+            return new BadRequestObjectResult(new { error = "Project is closed or does not exist." });
+        }
+
+        var firstWeek = WeekHelper.WeekStartOf(body.WeekStart);
+        var lastWeekExclusive = firstWeek.AddDays(7 * body.Weeks);
+
+        var existing = await db.Allocations
+            .Where(a => a.PersonId == body.PersonId && a.ProjectId == body.ProjectId
+                && a.WeekStart >= firstWeek && a.WeekStart < lastWeekExclusive)
+            .ToDictionaryAsync(a => a.WeekStart);
+
+        var userOid = result.User!.Oid;
+        var affected = new List<Allocation>();
+        for (var week = firstWeek; week < lastWeekExclusive; week = week.AddDays(7))
+        {
+            existing.TryGetValue(week, out var row);
+            if (body.HoursPerWeek == 0)
+            {
+                if (row is not null)
+                {
+                    db.Allocations.Remove(row);
+                    audit.Record(nameof(Allocation), row.AllocationId.ToString(), nameof(Allocation.Hours), row.Hours.ToString(), "0 (removed)", userOid);
+                }
+                continue;
+            }
+
+            if (row is null)
+            {
+                row = new Allocation
+                {
+                    AllocationId = Guid.NewGuid(),
+                    PersonId = body.PersonId,
+                    ProjectId = body.ProjectId,
+                    WeekStart = week,
+                    Hours = body.HoursPerWeek,
+                };
+                db.Allocations.Add(row);
+                audit.Record(nameof(Allocation), row.AllocationId.ToString(), "created", null, body.HoursPerWeek.ToString(), userOid);
+            }
+            else if (row.Hours != body.HoursPerWeek)
+            {
+                audit.Record(nameof(Allocation), row.AllocationId.ToString(), nameof(Allocation.Hours), row.Hours.ToString(), body.HoursPerWeek.ToString(), userOid);
+                row.Hours = body.HoursPerWeek;
+            }
+
+            affected.Add(row);
+        }
+
+        await db.SaveChangesAsync();
+        return new OkObjectResult(affected.Select(AllocationDto.From));
+    }
+
     [Function("DeleteAllocation")]
     public async Task<AllocationWriteOutput> Delete(
         [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "allocations/{id:guid}")] HttpRequest req, Guid id)

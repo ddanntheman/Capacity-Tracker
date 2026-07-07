@@ -170,6 +170,9 @@ public record AllocationDto(Guid AllocationId, Guid PersonId, Guid ProjectId, Da
 
 public record UpsertAllocationRequest(Guid PersonId, Guid ProjectId, DateOnly WeekStart, decimal Hours);
 
+/// <summary>Staff a person on a project for a run of weeks at a constant hours/week.</summary>
+public record RangeUpsertAllocationRequest(Guid PersonId, Guid ProjectId, DateOnly WeekStart, int Weeks, decimal HoursPerWeek);
+
 // Identity
 public record MeDto(Guid Oid, string DisplayName, string Email, IEnumerable<string> Roles);
 

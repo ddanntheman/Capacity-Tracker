@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { NavLink } from "react-router-dom";
-import { CalendarRange, LayoutDashboard, Users, Briefcase, ScrollText, Gauge, ClipboardList, Building2, LineChart, Armchair, Network } from "lucide-react";
+import { LayoutDashboard, Users, Briefcase, ScrollText, Gauge, ClipboardList, Building2, LineChart, Armchair, Network } from "lucide-react";
 import { authLinks, useAuth } from "@/auth";
 import type { AppRole } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,6 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: <LayoutDashboard className="size-4" />, roles: ["leadership"] },
-  { to: "/allocations", label: "Allocations", icon: <CalendarRange className="size-4" />, roles: ["viewer", "editor", "leadership"] },
   { to: "/utilization", label: "Utilization Tracker", icon: <Gauge className="size-4" />, roles: ["viewer", "editor", "leadership"] },
   { to: "/resource-summary", label: "Resource Summary", icon: <ClipboardList className="size-4" />, roles: ["leadership"] },
   { to: "/executive-summary", label: "Executive Summary", icon: <LineChart className="size-4" />, roles: ["leadership"] },

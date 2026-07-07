@@ -162,12 +162,20 @@ export default function ProjectsPage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <InlineInput
-                        value={p.projectName}
-                        display={p.projectName}
-                        disabled={!canEdit}
-                        onSave={(v) => v.trim() && inlineUpdate.mutate({ project: p, patch: { projectName: v.trim() } })}
-                      />
+                      <div className="flex items-center gap-1">
+                        <InlineInput
+                          value={p.projectName}
+                          display={p.projectName}
+                          disabled={!canEdit}
+                          onSave={(v) => v.trim() && inlineUpdate.mutate({ project: p, patch: { projectName: v.trim() } })}
+                        />
+                        <Link
+                          to={`/projects/${p.projectId}`}
+                          className="shrink-0 text-xs text-[var(--color-muted-foreground)] hover:underline"
+                        >
+                          Open
+                        </Link>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <InlineSelect

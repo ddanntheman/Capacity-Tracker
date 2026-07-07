@@ -9,12 +9,21 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { matchesSearch, useSearchText, useUrlFilters } from "@/lib/urlFilters";
 
 const WEEKS_PER_YEAR = 52;
 
 export default function ResourceSummaryPage() {
   const year = new Date().getFullYear();
   const firstMonday = mondayOf(new Date(year, 0, 7));
+
+  const filters = useUrlFilters({ q: "", practice: "all", status: "all" });
+  const search = useSearchText(filters);
+  const q = search.text;
+  const practiceFilter = filters.get("practice");
+  const statusFilter = filters.get("status");
 
   const peopleQuery = useQuery({ queryKey: ["people", false], queryFn: () => api.listPeople(false) });
   const projectsQuery = useQuery({ queryKey: ["projects", "all"], queryFn: () => api.listProjects(false) });
@@ -65,6 +74,24 @@ export default function ResourceSummaryPage() {
     });
   }, [peopleQuery.data, allocationsQuery.data, actualsQuery.data, projects]);
 
+  const practices = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of peopleQuery.data ?? []) if (p.practice) set.add(p.practice);
+    return [...set].sort();
+  }, [peopleQuery.data]);
+
+  const visibleRows = useMemo(
+    () =>
+      rows.filter(
+        (r) =>
+          matchesSearch(q, r.person.displayName, r.person.rank, r.person.practice) &&
+          (practiceFilter === "all" || r.person.practice === practiceFilter) &&
+          (statusFilter === "all" ||
+            (statusFilter === "on-track" ? r.status === "ok" : statusFilter === "at-risk" ? r.status === "warn" : r.status === "over")),
+      ),
+    [rows, q, practiceFilter, statusFilter],
+  );
+
   return (
     <div className="space-y-6">
       <div>
@@ -72,6 +99,34 @@ export default function ResourceSummaryPage() {
         <p className="text-sm text-[var(--color-muted-foreground)]">
           {year} forecast: committed + pipeline hours vs. each person's utilization target.
         </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Input placeholder="Search person…" value={search.text} onChange={(e) => search.onChange(e.target.value)} className="w-56" />
+        <Select value={practiceFilter} onValueChange={(v) => filters.set("practice", v)}>
+          <SelectTrigger className="w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All practices</SelectItem>
+            {practices.map((p) => (
+              <SelectItem key={p} value={p}>
+                {p}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={statusFilter} onValueChange={(v) => filters.set("status", v)}>
+          <SelectTrigger className="w-36">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="on-track">On track</SelectItem>
+            <SelectItem value="at-risk">At risk</SelectItem>
+            <SelectItem value="off-track">Off track</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <Card>
@@ -102,7 +157,7 @@ export default function ResourceSummaryPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((r) => (
+                {visibleRows.map((r) => (
                   <TableRow key={r.person.personId}>
                     <TableCell className="font-medium">
                       <Link to={`/people/${r.person.personId}`} className="hover:underline">
@@ -137,10 +192,10 @@ export default function ResourceSummaryPage() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {rows.length === 0 && (
+                {visibleRows.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={13} className="text-center text-[var(--color-muted-foreground)]">
-                      No people to display.
+                      No people match the current filters.
                     </TableCell>
                   </TableRow>
                 )}

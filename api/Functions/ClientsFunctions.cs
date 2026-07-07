@@ -129,6 +129,120 @@ public class ClientsFunctions(CapacityDbContext db, RequestAuthorizer auth, Audi
         return new OkObjectResult(ClientDto.From(client));
     }
 
+    [Function("CreateClient")]
+    public async Task<IActionResult> Create(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "clients")] HttpRequest req)
+    {
+        var result = auth.Authorize(req, AppRoles.Editor);
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
+
+        var body = await req.ReadFromJsonAsync<UpsertClientRequest>();
+        if (body is null || string.IsNullOrWhiteSpace(body.Name))
+        {
+            return new BadRequestObjectResult(new { error = "Name is required." });
+        }
+
+        var name = body.Name.Trim();
+        if (await db.Clients.AnyAsync(c => c.Name == name))
+        {
+            return new ConflictObjectResult(new { error = "A client with that name already exists." });
+        }
+
+        var client = new Client
+        {
+            ClientId = Guid.NewGuid(),
+            Name = name,
+            Industry = body.Industry?.Trim(),
+            RelationshipPartner = body.RelationshipPartner?.Trim(),
+            Notes = body.Notes?.Trim(),
+        };
+        db.Clients.Add(client);
+        audit.Record(nameof(Client), client.ClientId.ToString(), "created", null, client.Name, result.User!.Oid);
+        await db.SaveChangesAsync();
+        return new CreatedResult($"/api/clients/{client.ClientId}", ClientDto.From(client));
+    }
+
+    [Function("DeleteClient")]
+    public async Task<IActionResult> Delete(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "clients/{id:guid}")] HttpRequest req, Guid id)
+    {
+        var result = auth.Authorize(req, AppRoles.Leadership);
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
+
+        var client = await db.Clients.FirstOrDefaultAsync(c => c.ClientId == id);
+        if (client is null)
+        {
+            return new NotFoundResult();
+        }
+
+        if (await db.Projects.AnyAsync(p => p.ClientName == client.Name))
+        {
+            return new ConflictObjectResult(new { error = "Client has projects. Merge it into another client instead." });
+        }
+
+        db.Clients.Remove(client);
+        audit.Record(nameof(Client), id.ToString(), "deleted", client.Name, null, result.User!.Oid);
+        await db.SaveChangesAsync();
+        return new NoContentResult();
+    }
+
+    [Function("MergeClient")]
+    public async Task<IActionResult> Merge(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "clients/{id:guid}/merge")] HttpRequest req, Guid id)
+    {
+        var result = auth.Authorize(req, AppRoles.Leadership);
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
+
+        var body = await req.ReadFromJsonAsync<MergeClientRequest>();
+        if (body is null || body.TargetClientId == Guid.Empty || body.TargetClientId == id)
+        {
+            return new BadRequestObjectResult(new { error = "A different target client is required." });
+        }
+
+        Client? target = null;
+        var strategy = db.Database.CreateExecutionStrategy();
+        IActionResult? failure = null;
+        await strategy.ExecuteAsync(async () =>
+        {
+            db.ChangeTracker.Clear();
+            await using var tx = await db.Database.BeginTransactionAsync();
+
+            var source = await db.Clients.FirstOrDefaultAsync(c => c.ClientId == id);
+            target = await db.Clients.FirstOrDefaultAsync(c => c.ClientId == body.TargetClientId);
+            if (source is null || target is null)
+            {
+                failure = new NotFoundResult();
+                return;
+            }
+
+            // Reassign the source client's projects, fill blanks on the target, then delete the source.
+            await db.Projects.Where(p => p.ClientName == source.Name)
+                .ExecuteUpdateAsync(s => s.SetProperty(p => p.ClientName, target.Name));
+            target.Industry ??= source.Industry;
+            target.RelationshipPartner ??= source.RelationshipPartner;
+            target.Notes ??= source.Notes;
+            db.Clients.Remove(source);
+            audit.Record(nameof(Client), id.ToString(), "merged", source.Name, target.Name, result.User!.Oid);
+            await db.SaveChangesAsync();
+            await tx.CommitAsync();
+        });
+
+        if (failure is not null)
+        {
+            return failure;
+        }
+        return new OkObjectResult(ClientDto.From(target!));
+    }
+
     /// <summary>Atomic insert-if-missing that tolerates concurrent inserts of the same client name.</summary>
     internal static async Task InsertClientIfMissing(CapacityDbContext db, string name)
     {

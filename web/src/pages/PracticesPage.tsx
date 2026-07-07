@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { InlineInput, InlineSelect } from "@/components/InlineEdit";
+import { matchesSearch, useSearchText, useUrlFilters } from "@/lib/urlFilters";
 
 export default function PracticesPage() {
   const { hasRole } = useAuth();
@@ -21,8 +22,19 @@ export default function PracticesPage() {
   const qc = useQueryClient();
   const [merging, setMerging] = useState<Practice | null>(null);
 
-  const { data: practices = [], isLoading } = useQuery({ queryKey: ["practices"], queryFn: () => api.listPractices() });
+  const filters = useUrlFilters({ q: "", status: "all" });
+  const search = useSearchText(filters);
+  const q = search.text;
+  const statusFilter = filters.get("status");
+
+  const { data: allPractices = [], isLoading } = useQuery({ queryKey: ["practices"], queryFn: () => api.listPractices() });
   const { data: people = [] } = useQuery({ queryKey: ["people", false], queryFn: () => api.listPeople(false) });
+
+  const practices = allPractices.filter(
+    (p) =>
+      matchesSearch(q, p.name) &&
+      (statusFilter === "all" || (statusFilter === "archived" ? p.isArchived : !p.isArchived)),
+  );
 
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ["practices"] });
@@ -58,6 +70,20 @@ export default function PracticesPage() {
           </p>
         </div>
         {canEdit && <CreatePracticeDialog />}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Input placeholder="Search practice…" value={search.text} onChange={(e) => search.onChange(e.target.value)} className="w-56" />
+        <Select value={statusFilter} onValueChange={(v) => filters.set("status", v)}>
+          <SelectTrigger className="w-36">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="archived">Archived</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <Card>

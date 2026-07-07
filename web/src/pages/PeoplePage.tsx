@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { InlineInput, InlineSelect } from "@/components/InlineEdit";
+import { matchesSearch, useSearchText, useUrlFilters } from "@/lib/urlFilters";
 
 export const RANKS = [
   "Analyst",
@@ -71,14 +72,33 @@ export default function PeoplePage() {
   const canEdit = hasRole("editor");
   const isLeadership = hasRole("leadership");
   const qc = useQueryClient();
-  const [includeInactive, setIncludeInactive] = useState(false);
   const [mergeSource, setMergeSource] = useState<Person | null>(null);
 
-  const { data: people = [], isLoading } = useQuery({
+  const filters = useUrlFilters({ q: "", rank: "all", practice: "all", status: "active" });
+  const search = useSearchText(filters);
+  const q = search.text;
+  const rankFilter = filters.get("rank");
+  const practiceFilter = filters.get("practice");
+  const statusFilter = filters.get("status");
+  const includeInactive = statusFilter !== "active";
+
+  const { data: allPeople = [], isLoading } = useQuery({
     queryKey: ["people", includeInactive],
     queryFn: () => api.listPeople(includeInactive),
   });
   const { data: practices = [] } = useQuery({ queryKey: ["practices"], queryFn: () => api.listPractices() });
+
+  const people = useMemo(
+    () =>
+      allPeople.filter(
+        (p) =>
+          matchesSearch(q, p.displayName, p.email, p.practice, p.rank) &&
+          (rankFilter === "all" || p.rank === rankFilter) &&
+          (practiceFilter === "all" || p.practice === practiceFilter) &&
+          (statusFilter === "all" || (statusFilter === "inactive" ? !p.isActive : p.isActive)),
+      ),
+    [allPeople, q, rankFilter, practiceFilter, statusFilter],
+  );
 
   const inlineUpdate = useMutation({
     mutationFn: ({ person, patch }: { person: Person; patch: Partial<Person> }) =>
@@ -107,13 +127,52 @@ export default function PeoplePage() {
           <h1 className="text-2xl font-semibold">People</h1>
           <p className="text-sm text-[var(--color-muted-foreground)]">Consultant records and reporting lines.</p>
         </div>
-        <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={includeInactive} onChange={(e) => setIncludeInactive(e.target.checked)} />
-            Show inactive
-          </label>
-          {canEdit && <PersonDialog people={people} />}
-        </div>
+        {canEdit && <PersonDialog people={people} />}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          placeholder="Search name, email…"
+          value={search.text}
+          onChange={(e) => search.onChange(e.target.value)}
+          className="w-56"
+        />
+        <Select value={rankFilter} onValueChange={(v) => filters.set("rank", v)}>
+          <SelectTrigger className="w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All ranks</SelectItem>
+            {RANKS.map((r) => (
+              <SelectItem key={r} value={r}>
+                {r}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={practiceFilter} onValueChange={(v) => filters.set("practice", v)}>
+          <SelectTrigger className="w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All practices</SelectItem>
+            {practices.map((pr) => (
+              <SelectItem key={pr.practiceId} value={pr.name}>
+                {pr.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={statusFilter} onValueChange={(v) => filters.set("status", v)}>
+          <SelectTrigger className="w-36">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="inactive">Inactive</SelectItem>
+            <SelectItem value="all">All statuses</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <Card>
@@ -202,7 +261,7 @@ export default function PeoplePage() {
                 {people.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={6 + (canEdit ? 1 : 0)} className="text-center text-[var(--color-muted-foreground)]">
-                      No people yet.
+                      No people match the current filters.
                     </TableCell>
                   </TableRow>
                 )}

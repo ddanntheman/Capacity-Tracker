@@ -50,7 +50,8 @@ function likelyDuplicates(clients: Client[]): [Client, Client][] {
       const a = normalizeName(clients[i].name);
       const b = normalizeName(clients[j].name);
       if (a.length < 4 || b.length < 4) continue;
-      if (a === b || a.startsWith(b) || b.startsWith(a) || editDistance(a, b) <= 2) {
+      const maxDistance = Math.min(a.length, b.length) < 8 ? 1 : 2;
+      if (a === b || a.startsWith(b) || b.startsWith(a) || editDistance(a, b) <= maxDistance) {
         pairs.push([clients[i], clients[j]]);
       }
     }

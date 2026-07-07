@@ -18,6 +18,8 @@ export default function BenchPage() {
   const weeks = Number(searchParams.get("weeks")) || 4;
   const minFree = searchParams.has("minFree") ? Math.max(0, Number(searchParams.get("minFree")) || 0) : 8;
   const practice = searchParams.get("practice") ?? "all";
+  const skill = searchParams.get("skill") ?? "all";
+  const availability = searchParams.get("availability") ?? "all";
   const setParam = (key: string, value: string) =>
     setSearchParams(
       (prev) => {
@@ -49,6 +51,17 @@ export default function BenchPage() {
     return [...set].sort();
   }, [peopleQuery.data]);
 
+  const skills = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of peopleQuery.data ?? []) {
+      for (const s of (p.skills ?? "").split(",")) {
+        const t = s.trim();
+        if (t) set.add(t);
+      }
+    }
+    return [...set].sort();
+  }, [peopleQuery.data]);
+
   const rows = useMemo(() => {
     // booked[personId][weekStart] -> hours (committed + pipeline)
     const booked = new Map<string, Map<string, number>>();
@@ -62,17 +75,27 @@ export default function BenchPage() {
 
     let people = peopleQuery.data ?? [];
     if (practice !== "all") people = people.filter((p) => p.practice === practice);
+    if (skill !== "all") {
+      people = people.filter((p) =>
+        (p.skills ?? "")
+          .split(",")
+          .map((s) => s.trim().toLowerCase())
+          .includes(skill.toLowerCase()),
+      );
+    }
 
     return people
       .map((person) => {
         const capacity = person.weeklyCapacityHours || 40;
         const freeByWeek = visibleWeeks.map((w) => capacity - (booked.get(person.personId)?.get(w) ?? 0));
         const totalFree = freeByWeek.reduce((s, f) => s + Math.max(0, f), 0);
-        return { person, freeByWeek, totalFree };
+        const fullyAvailable = freeByWeek.every((f) => f >= capacity);
+        return { person, freeByWeek, totalFree, fullyAvailable };
       })
       .filter((r) => r.totalFree >= minFree)
+      .filter((r) => availability === "all" || (availability === "full" ? r.fullyAvailable : !r.fullyAvailable && r.totalFree > 0))
       .sort((a, b) => b.totalFree - a.totalFree);
-  }, [peopleQuery.data, allocationsQuery.data, projects, visibleWeeks, practice, minFree]);
+  }, [peopleQuery.data, allocationsQuery.data, projects, visibleWeeks, practice, minFree, skill, availability]);
 
   return (
     <div className="space-y-6">
@@ -97,6 +120,35 @@ export default function BenchPage() {
                     {p}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Skill</Label>
+            <Select value={skill} onValueChange={(v) => setParam("skill", v)}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All skills</SelectItem>
+                {skills.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Availability</Label>
+            <Select value={availability} onValueChange={(v) => setParam("availability", v)}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="full">Fully available</SelectItem>
+                <SelectItem value="partial">Partially available</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -144,6 +196,7 @@ export default function BenchPage() {
                   <th className="sticky left-0 z-10 bg-[var(--color-card)] p-2 text-left font-medium">Person</th>
                   <th className="p-2 text-left font-medium">Rank</th>
                   <th className="p-2 text-left font-medium">Practice</th>
+                  <th className="p-2 text-left font-medium">Availability</th>
                   {visibleWeeks.map((w) => (
                     <th key={w} className="min-w-16 p-2 text-center font-medium text-[var(--color-muted-foreground)]">
                       {weekLabel(w)}
@@ -163,6 +216,9 @@ export default function BenchPage() {
                     </td>
                     <td className="p-2">{r.person.rank ?? "—"}</td>
                     <td className="p-2">{r.person.practice ?? "—"}</td>
+                    <td className="p-2">
+                      {r.fullyAvailable ? <span className="text-[var(--color-ok)]">Fully available</span> : "Partial"}
+                    </td>
                     {r.freeByWeek.map((free, i) => (
                       <td
                         key={visibleWeeks[i]}
@@ -174,14 +230,14 @@ export default function BenchPage() {
                     <td className="p-2 text-right font-medium tabular-nums">{r.totalFree}</td>
                     <td className="p-2 text-right">
                       <Button asChild variant="outline" size="sm">
-                        <Link to={`/allocations?person=${r.person.personId}`}>Staff</Link>
+                        <Link to={`/utilization?person=${r.person.personId}`}>Staff</Link>
                       </Button>
                     </td>
                   </tr>
                 ))}
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={5 + visibleWeeks.length} className="p-6 text-center text-[var(--color-muted-foreground)]">
+                    <td colSpan={6 + visibleWeeks.length} className="p-6 text-center text-[var(--color-muted-foreground)]">
                       Nobody matches the current filters.
                     </td>
                   </tr>

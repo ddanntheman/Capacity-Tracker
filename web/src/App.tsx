@@ -7,7 +7,7 @@ import DashboardPage from "@/pages/DashboardPage";
 import PeoplePage from "@/pages/PeoplePage";
 import PersonProfilePage from "@/pages/PersonProfilePage";
 import ProjectsPage from "@/pages/ProjectsPage";
-import AllocationsPage from "@/pages/AllocationsPage";
+import ProjectDetailPage from "@/pages/ProjectDetailPage";
 import AuditPage from "@/pages/AuditPage";
 import UtilizationTrackerPage from "@/pages/UtilizationTrackerPage";
 import ResourceSummaryPage from "@/pages/ResourceSummaryPage";
@@ -28,7 +28,7 @@ export default function App() {
     return <LoginScreen />;
   }
 
-  const home = me.roles.includes("leadership") ? "/dashboard" : "/allocations";
+  const home = me.roles.includes("leadership") ? "/dashboard" : "/utilization";
 
   return (
     <Layout>
@@ -66,11 +66,13 @@ export default function App() {
             </RequireRole>
           }
         />
+        {/* Allocations merged into the Utilization Tracker overlay (page kept, route hidden). */}
+        <Route path="/allocations" element={<Navigate to="/utilization" replace />} />
         <Route
-          path="/allocations"
+          path="/projects/:id"
           element={
             <RequireRole roles={["viewer", "editor", "leadership"]}>
-              <AllocationsPage />
+              <ProjectDetailPage />
             </RequireRole>
           }
         />

@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuth } from "@/auth";
 import { currentWeekStart, mondayOf, shiftWeeks, weekLabel, weekRange } from "@/lib/weeks";
@@ -8,11 +10,21 @@ import type { Person, Project } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { StaffRangeDialog } from "@/components/StaffRangeDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { availabilityStatus, rygCellClass } from "@/lib/ryg";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { matchesSearch, useSearchText, useUrlFilters } from "@/lib/urlFilters";
+import type { Allocation } from "@/lib/types";
 
 type WeekBucket = { committed: number; pipeline: number; committedProjects: string[]; pipelineProjects: string[] };
 
@@ -20,7 +32,7 @@ export default function UtilizationTrackerPage() {
   const { me, hasRole } = useAuth();
   const viewerOnly = !hasRole("editor") && !hasRole("leadership");
   const [weekStart, setWeekStart] = useState(currentWeekStart());
-  const filters = useUrlFilters({ q: "", practice: "all", weeks: "12" });
+  const filters = useUrlFilters({ q: "", practice: "all", weeks: "12", person: "" });
   const search = useSearchText(filters);
   const q = search.text;
   const practice = filters.get("practice");
@@ -78,6 +90,10 @@ export default function UtilizationTrackerPage() {
   }, [allocationsQuery.data, projects]);
 
   const startOfYear = mondayOf(new Date(new Date().getFullYear(), 0, 7));
+
+  const canEdit = hasRole("editor") || hasRole("leadership");
+  const overlayPersonId = filters.get("person");
+  const overlayPerson = (peopleQuery.data ?? []).find((p) => p.personId === overlayPersonId);
 
   return (
     <div className="space-y-6">
@@ -147,7 +163,13 @@ export default function UtilizationTrackerPage() {
               </thead>
               <tbody>
                 {people.map((person) => (
-                  <PersonRows key={person.personId} person={person} weeks={visibleWeeks} byWeek={index.get(person.personId)} />
+                  <PersonRows
+                    key={person.personId}
+                    person={person}
+                    weeks={visibleWeeks}
+                    byWeek={index.get(person.personId)}
+                    onOpen={() => filters.set("person", person.personId)}
+                  />
                 ))}
                 {people.length === 0 && (
                   <tr>
@@ -171,7 +193,185 @@ export default function UtilizationTrackerPage() {
           </div>
         </CardContent>
       </Card>
+
+      {overlayPerson && (
+        <PersonStaffingOverlay
+          person={overlayPerson}
+          allocations={allocationsQuery.data ?? []}
+          projects={projects}
+          canEdit={canEdit}
+          onClose={() => filters.set("person", "")}
+        />
+      )}
     </div>
+  );
+}
+
+interface StaffingRow {
+  project: Project;
+  firstWeek: string;
+  lastWeek: string;
+  weekCount: number;
+  totalHours: number;
+  hoursPerWeek: number;
+}
+
+/**
+ * Per-person staffing breakdown: which projects make up their committed vs
+ * pipeline hours in the visible window, editable via date-range staffing.
+ */
+function PersonStaffingOverlay({
+  person,
+  allocations,
+  projects,
+  canEdit,
+  onClose,
+}: {
+  person: Person;
+  allocations: Allocation[];
+  projects: Map<string, Project>;
+  canEdit: boolean;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [staffOpen, setStaffOpen] = useState(false);
+  const [editRow, setEditRow] = useState<StaffingRow | null>(null);
+
+  const rows = useMemo<StaffingRow[]>(() => {
+    const byProject = new Map<string, { weeks: string[]; total: number }>();
+    for (const a of allocations) {
+      if (a.personId !== person.personId || a.hours <= 0) continue;
+      const project = projects.get(a.projectId);
+      if (!project || project.status === "closed") continue;
+      if (!byProject.has(a.projectId)) byProject.set(a.projectId, { weeks: [], total: 0 });
+      const e = byProject.get(a.projectId)!;
+      e.weeks.push(a.weekStart);
+      e.total += a.hours;
+    }
+    return [...byProject.entries()]
+      .map(([projectId, e]) => {
+        const weeks = e.weeks.sort();
+        return {
+          project: projects.get(projectId)!,
+          firstWeek: weeks[0],
+          lastWeek: weeks[weeks.length - 1],
+          weekCount: weeks.length,
+          totalHours: e.total,
+          hoursPerWeek: Math.round((e.total / weeks.length) * 10) / 10,
+        };
+      })
+      .sort((a, b) => b.totalHours - a.totalHours);
+  }, [allocations, projects, person.personId]);
+
+  const committedTotal = rows.filter((r) => r.project.status !== "pipeline").reduce((s, r) => s + r.totalHours, 0);
+  const pipelineTotal = rows.filter((r) => r.project.status === "pipeline").reduce((s, r) => s + r.totalHours, 0);
+
+  const clearRange = useMutation({
+    mutationFn: (row: StaffingRow) =>
+      api.rangeUpsertAllocations({
+        personId: person.personId,
+        projectId: row.project.projectId,
+        weekStart: row.firstWeek,
+        weeks: Math.min(52, Math.round((new Date(`${row.lastWeek}T00:00:00`).getTime() - new Date(`${row.firstWeek}T00:00:00`).getTime()) / (7 * 24 * 3600 * 1000)) + 1),
+        hoursPerWeek: 0,
+      }),
+    onSuccess: () => {
+      toast.success("Staffing removed");
+      void qc.invalidateQueries({ queryKey: ["allocations"] });
+    },
+    onError: () => toast.error("Failed to remove"),
+  });
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>{person.displayName} — staffing breakdown</DialogTitle>
+          <DialogDescription>
+            {committedTotal}h committed · {pipelineTotal}h pipeline in the visible window.
+            {canEdit ? " Edit a range or staff onto a new project below." : ""}
+          </DialogDescription>
+        </DialogHeader>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Project</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>From</TableHead>
+              <TableHead>To</TableHead>
+              <TableHead className="text-right">Hrs/wk</TableHead>
+              <TableHead className="text-right">Total</TableHead>
+              {canEdit && <TableHead className="text-right">Actions</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((r) => (
+              <TableRow key={r.project.projectId}>
+                <TableCell className="font-medium">
+                  <Link to={`/projects/${r.project.projectId}`} className="hover:underline">
+                    {r.project.clientName} — {r.project.projectName}
+                  </Link>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={r.project.status === "pipeline" ? "warn" : "ok"}>
+                    {r.project.status === "pipeline" ? "Pipeline" : "Committed"}
+                  </Badge>
+                </TableCell>
+                <TableCell>{weekLabel(r.firstWeek)}</TableCell>
+                <TableCell>{weekLabel(r.lastWeek)}</TableCell>
+                <TableCell className="text-right tabular-nums">{r.hoursPerWeek}</TableCell>
+                <TableCell className="text-right font-medium tabular-nums">{r.totalHours}</TableCell>
+                {canEdit && (
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setEditRow(r)}>
+                        Edit range
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => clearRange.mutate(r)} disabled={clearRange.isPending}>
+                        Remove
+                      </Button>
+                    </div>
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+            {rows.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={canEdit ? 7 : 6} className="text-center text-[var(--color-muted-foreground)]">
+                  No staffing in the visible window.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+        {canEdit && (
+          <div className="flex justify-end">
+            <Button onClick={() => setStaffOpen(true)}>Staff on a project</Button>
+          </div>
+        )}
+        {staffOpen && (
+          <StaffRangeDialog
+            open={staffOpen}
+            onOpenChange={setStaffOpen}
+            person={person}
+            projects={[...projects.values()]}
+          />
+        )}
+        {editRow && (
+          <StaffRangeDialog
+            open={!!editRow}
+            onOpenChange={(o) => !o && setEditRow(null)}
+            person={person}
+            project={editRow.project}
+            defaults={{
+              weekStart: editRow.firstWeek,
+              weeks: Math.min(52, Math.round((new Date(`${editRow.lastWeek}T00:00:00`).getTime() - new Date(`${editRow.firstWeek}T00:00:00`).getTime()) / (7 * 24 * 3600 * 1000)) + 1),
+              hoursPerWeek: editRow.hoursPerWeek,
+            }}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -179,10 +379,12 @@ function PersonRows({
   person,
   weeks,
   byWeek,
+  onOpen,
 }: {
   person: Person;
   weeks: string[];
   byWeek: Map<string, WeekBucket> | undefined;
+  onOpen: () => void;
 }) {
   const capacity = person.weeklyCapacityHours || 40;
   const rows: { key: "committed" | "pipeline" | "available"; label: string; variant: "ok" | "warn" | "secondary" }[] = [
@@ -197,7 +399,9 @@ function PersonRows({
         <tr key={row.key} className={cn(i === 0 && "border-t")}>
           {i === 0 ? (
             <td rowSpan={3} className="sticky left-0 z-10 bg-[var(--color-card)] p-2 align-top font-medium">
-              <div>{person.displayName}</div>
+              <button type="button" onClick={onOpen} className="text-left hover:underline">
+                {person.displayName}
+              </button>
               <div className="text-xs font-normal text-[var(--color-muted-foreground)]">
                 {[person.rank, person.practice].filter(Boolean).join(" · ")}
               </div>

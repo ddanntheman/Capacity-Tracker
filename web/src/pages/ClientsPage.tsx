@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Plus } from "lucide-react";
+import { Plus, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/auth";
@@ -23,6 +23,41 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { InlineInput } from "@/components/InlineEdit";
 import { matchesSearch, useSearchText, useUrlFilters } from "@/lib/urlFilters";
+
+function normalizeName(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function editDistance(a: string, b: string): number {
+  if (Math.abs(a.length - b.length) > 2) return 3;
+  const dp = Array.from({ length: a.length + 1 }, (_, i) => i);
+  for (let j = 1; j <= b.length; j++) {
+    let prev = dp[0];
+    dp[0] = j;
+    for (let i = 1; i <= a.length; i++) {
+      const tmp = dp[i];
+      dp[i] = a[i - 1] === b[j - 1] ? prev : 1 + Math.min(prev, dp[i], dp[i - 1]);
+      prev = tmp;
+    }
+  }
+  return dp[a.length];
+}
+
+function likelyDuplicates(clients: Client[]): [Client, Client][] {
+  const pairs: [Client, Client][] = [];
+  for (let i = 0; i < clients.length; i++) {
+    for (let j = i + 1; j < clients.length; j++) {
+      const a = normalizeName(clients[i].name);
+      const b = normalizeName(clients[j].name);
+      if (a.length < 4 || b.length < 4) continue;
+      const maxDistance = Math.min(a.length, b.length) < 8 ? 1 : 2;
+      if (a === b || a.startsWith(b) || b.startsWith(a) || editDistance(a, b) <= maxDistance) {
+        pairs.push([clients[i], clients[j]]);
+      }
+    }
+  }
+  return pairs;
+}
 
 export default function ClientsPage() {
   const { hasRole } = useAuth();
@@ -99,6 +134,8 @@ export default function ClientsPage() {
 
   const hasDealValues = (projectsQuery.data ?? []).some((p) => p.dealValue != null);
 
+  const duplicatePairs = useMemo(() => likelyDuplicates(clientsQuery.data ?? []), [clientsQuery.data]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -132,6 +169,27 @@ export default function ClientsPage() {
           </SelectContent>
         </Select>
       </div>
+
+      {isLeadership && duplicatePairs.length > 0 && (
+        <div className="rounded-lg border border-[var(--color-warn,#eab308)]/40 bg-[var(--color-warn,#eab308)]/10 p-4">
+          <div className="flex items-center gap-2 font-medium">
+            <AlertTriangle className="size-4" /> Possible duplicate clients
+          </div>
+          <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
+            Similar names split allocations and rollups across records. Review and merge if they're the same client.
+          </p>
+          <ul className="mt-2 space-y-1">
+            {duplicatePairs.map(([a, b]) => (
+              <li key={`${a.clientId}-${b.clientId}`} className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="font-medium">{a.name}</span> ↔ <span className="font-medium">{b.name}</span>
+                <Button variant="outline" size="sm" onClick={() => setMergeSource(b)}>
+                  Merge
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <Card>
         <CardContent className="pt-6">

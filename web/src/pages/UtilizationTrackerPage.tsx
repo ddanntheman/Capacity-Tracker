@@ -191,12 +191,12 @@ export default function UtilizationTrackerPage() {
 
       <Card>
         <CardContent className="pt-6">
-          <div className="overflow-auto">
+          <div className="max-h-[70vh] overflow-auto">
             <table className="w-full border-collapse text-sm" aria-label="Utilization tracker grid">
-              <thead>
+              <thead className="sticky top-0 z-20 bg-[var(--color-card)]">
                 <tr>
-                  <th className="sticky left-0 z-10 bg-[var(--color-card)] p-2 text-left font-medium">Person</th>
-                  <th className="sticky left-40 z-10 bg-[var(--color-card)] p-2 text-left font-medium"> </th>
+                  <th className="sticky left-0 z-30 bg-[var(--color-card)] p-2 text-left font-medium">Person</th>
+                  <th className="sticky left-40 z-30 bg-[var(--color-card)] p-2 text-left font-medium"> </th>
                   {visibleWeeks.map((w) => (
                     <th key={w} className="min-w-16 p-2 text-center font-medium text-[var(--color-muted-foreground)]">
                       {weekLabel(w)}

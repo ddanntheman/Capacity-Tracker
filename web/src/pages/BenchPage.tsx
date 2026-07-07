@@ -189,11 +189,11 @@ export default function BenchPage() {
           <CardDescription>Free = weekly capacity − committed − pipeline hours.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-auto">
+          <div className="max-h-[70vh] overflow-auto">
             <table className="w-full border-collapse text-sm" aria-label="Bench availability grid">
-              <thead>
+              <thead className="sticky top-0 z-20 bg-[var(--color-card)]">
                 <tr>
-                  <th className="sticky left-0 z-10 bg-[var(--color-card)] p-2 text-left font-medium">Person</th>
+                  <th className="sticky left-0 z-30 bg-[var(--color-card)] p-2 text-left font-medium">Person</th>
                   <th className="p-2 text-left font-medium">Rank</th>
                   <th className="p-2 text-left font-medium">Practice</th>
                   <th className="p-2 text-left font-medium">Availability</th>

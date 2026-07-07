@@ -153,7 +153,7 @@ export default function ResourceSummaryPage() {
             <SelectItem value="off-track">Off track</SelectItem>
           </SelectContent>
         </Select>
-        <Button variant="outline" size="sm" onClick={exportCsv}>
+        <Button variant="outline" size="sm" onClick={exportCsv} disabled={peopleQuery.isLoading || allocationsQuery.isLoading}>
           <Download className="mr-1 size-4" /> Export CSV
         </Button>
       </div>

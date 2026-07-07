@@ -249,7 +249,7 @@ export default function DashboardPage() {
                       </TableCell>
                     </TableRow>
                   ))}
-                {availabilityRows.map((r) => {
+                {!(allocations.isLoading || people.isLoading) && availabilityRows.map((r) => {
                   const free = r.capacity - r.booked;
                   const status = availabilityStatus(free);
                   return (

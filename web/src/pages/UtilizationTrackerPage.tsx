@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuth } from "@/auth";
@@ -23,6 +23,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { availabilityStatus, rygCellClass } from "@/lib/ryg";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { downloadCsv } from "@/lib/csv";
 import { matchesSearch, useSearchText, useUrlFilters } from "@/lib/urlFilters";
 import type { Allocation } from "@/lib/types";
 
@@ -91,6 +93,44 @@ export default function UtilizationTrackerPage() {
 
   const startOfYear = mondayOf(new Date(new Date().getFullYear(), 0, 7));
 
+  const loading = peopleQuery.isLoading || projectsQuery.isLoading || allocationsQuery.isLoading;
+
+  // Firm-wide totals per visible week across the filtered people.
+  const weekTotals = useMemo(() => {
+    const totals = new Map<string, { committed: number; pipeline: number; available: number }>();
+    for (const w of visibleWeeks) totals.set(w, { committed: 0, pipeline: 0, available: 0 });
+    for (const person of people) {
+      const capacity = person.weeklyCapacityHours || 40;
+      const byWeek = index.get(person.personId);
+      for (const w of visibleWeeks) {
+        const bucket = byWeek?.get(w);
+        const committed = bucket?.committed ?? 0;
+        const pipeline = bucket?.pipeline ?? 0;
+        const t = totals.get(w)!;
+        t.committed += committed;
+        t.pipeline += pipeline;
+        t.available += Math.max(0, capacity - committed - pipeline);
+      }
+    }
+    return totals;
+  }, [people, index, visibleWeeks]);
+
+  const exportCsv = () => {
+    const header = ["Person", "Rank", "Practice", "Row", ...visibleWeeks.map(weekLabel)];
+    const rows: (string | number)[][] = [];
+    for (const person of people) {
+      const capacity = person.weeklyCapacityHours || 40;
+      const byWeek = index.get(person.personId);
+      const committed = visibleWeeks.map((w) => byWeek?.get(w)?.committed ?? 0);
+      const pipeline = visibleWeeks.map((w) => byWeek?.get(w)?.pipeline ?? 0);
+      const available = visibleWeeks.map((_, i) => capacity - committed[i] - pipeline[i]);
+      rows.push([person.displayName, person.rank ?? "", person.practice ?? "", "Committed", ...committed]);
+      rows.push([person.displayName, person.rank ?? "", person.practice ?? "", "Pipeline", ...pipeline]);
+      rows.push([person.displayName, person.rank ?? "", person.practice ?? "", "Available", ...available]);
+    }
+    downloadCsv(`utilization-tracker-${weekStart}.csv`, header, rows);
+  };
+
   const canEdit = hasRole("editor");
   const overlayPersonId = filters.get("person");
   const overlayPerson = (peopleQuery.data ?? []).find((p) => p.personId === overlayPersonId);
@@ -143,6 +183,9 @@ export default function UtilizationTrackerPage() {
               ))}
             </SelectContent>
           </Select>
+          <Button variant="outline" size="sm" onClick={exportCsv} disabled={loading}>
+            <Download className="mr-1 size-4" /> Export CSV
+          </Button>
         </div>
       </div>
 
@@ -162,16 +205,28 @@ export default function UtilizationTrackerPage() {
                 </tr>
               </thead>
               <tbody>
-                {people.map((person) => (
-                  <PersonRows
-                    key={person.personId}
-                    person={person}
-                    weeks={visibleWeeks}
-                    byWeek={index.get(person.personId)}
-                    onOpen={() => filters.set("person", person.personId)}
-                  />
-                ))}
-                {people.length === 0 && (
+                {loading &&
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i}>
+                      <td className="p-2" colSpan={visibleWeeks.length + 2}>
+                        <Skeleton className="h-12 w-full" />
+                      </td>
+                    </tr>
+                  ))}
+                {!loading && people.length > 0 && (
+                  <TeamTotalsRows weeks={visibleWeeks} totals={weekTotals} />
+                )}
+                {!loading &&
+                  people.map((person) => (
+                    <PersonRows
+                      key={person.personId}
+                      person={person}
+                      weeks={visibleWeeks}
+                      byWeek={index.get(person.personId)}
+                      onOpen={() => filters.set("person", person.personId)}
+                    />
+                  ))}
+                {!loading && people.length === 0 && (
                   <tr>
                     <td colSpan={visibleWeeks.length + 2} className="p-6 text-center text-[var(--color-muted-foreground)]">
                       No people to display.
@@ -372,6 +427,42 @@ function PersonStaffingOverlay({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function TeamTotalsRows({
+  weeks,
+  totals,
+}: {
+  weeks: string[];
+  totals: Map<string, { committed: number; pipeline: number; available: number }>;
+}) {
+  const rows: { key: "committed" | "pipeline" | "available"; label: string; variant: "ok" | "warn" | "secondary" }[] = [
+    { key: "committed", label: "C", variant: "ok" },
+    { key: "pipeline", label: "P", variant: "warn" },
+    { key: "available", label: "A", variant: "secondary" },
+  ];
+  return (
+    <>
+      {rows.map((row, i) => (
+        <tr key={row.key} className={cn("bg-[var(--color-muted)]", i === 0 && "border-t")}>
+          {i === 0 ? (
+            <td rowSpan={3} className="sticky left-0 z-10 bg-[var(--color-muted)] p-2 align-top font-semibold">
+              Team total
+              <div className="text-xs font-normal text-[var(--color-muted-foreground)]">All filtered people</div>
+            </td>
+          ) : null}
+          <td className="sticky left-40 z-10 bg-[var(--color-muted)] p-1">
+            <Badge variant={row.variant}>{row.label}</Badge>
+          </td>
+          {weeks.map((w) => (
+            <td key={w} className="p-1 text-center font-medium tabular-nums">
+              {Math.round((totals.get(w)?.[row.key] ?? 0) * 10) / 10}
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
   );
 }
 

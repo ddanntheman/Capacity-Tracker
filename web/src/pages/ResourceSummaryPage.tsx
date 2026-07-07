@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Download } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
@@ -12,6 +13,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { matchesSearch, useSearchText, useUrlFilters } from "@/lib/urlFilters";
+import { Button } from "@/components/ui/button";
+import { downloadCsv } from "@/lib/csv";
 
 const WEEKS_PER_YEAR = 52;
 
@@ -92,6 +95,29 @@ export default function ResourceSummaryPage() {
     [rows, q, practiceFilter, statusFilter],
   );
 
+  const exportCsv = () => {
+    downloadCsv(
+      `resource-summary-${year}.csv`,
+      ["Name", "Level", "Practice", "Util target %", "Billable target (hrs)", "Committed (hrs)", "Pipeline (hrs)", "Weighted pipeline (hrs)", "Actual to date (hrs)", "Total chargeable (hrs)", "Forecast util %", "vs. target (pts)", "Remaining (hrs)", "Status"],
+      visibleRows.map((r) => [
+        r.person.displayName,
+        r.person.rank ?? "",
+        r.person.practice ?? "",
+        r.target ?? "",
+        r.billableTarget ?? "",
+        r.committed,
+        r.pipeline,
+        Math.round(r.weightedPipeline),
+        r.actualToDate,
+        r.totalChargeable,
+        r.forecastUtil.toFixed(1),
+        r.vsTarget != null ? r.vsTarget.toFixed(1) : "",
+        r.remaining != null ? Math.max(0, r.remaining) : "",
+        r.status == null ? "No target" : r.status === "ok" ? "On track" : r.status === "warn" ? "At risk" : "Off track",
+      ]),
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -127,6 +153,9 @@ export default function ResourceSummaryPage() {
             <SelectItem value="off-track">Off track</SelectItem>
           </SelectContent>
         </Select>
+        <Button variant="outline" size="sm" onClick={exportCsv}>
+          <Download className="mr-1 size-4" /> Export CSV
+        </Button>
       </div>
 
       <Card>

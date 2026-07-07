@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function weekBarStatus(utilizationRate: number): Ryg {
   if (utilizationRate > 100) return "over";
@@ -55,6 +56,20 @@ export default function DashboardPage() {
 
   const fullyAvailable = currentWeekRows.filter((r) => r.booked === 0);
   const partiallyAvailable = currentWeekRows.filter((r) => r.booked > 0 && r.booked < r.capacity);
+
+  // Pipeline engagements whose expected start date has passed without converting.
+  const stalePipeline = useMemo(
+    () =>
+      (projects.data ?? [])
+        .filter((p) => p.status === "pipeline" && p.startDate && p.startDate < weekStart)
+        .sort((a, b) => a.startDate.localeCompare(b.startDate)),
+    [projects.data, weekStart],
+  );
+
+  const availabilityRows = useMemo(
+    () => [...currentWeekRows].sort((a, b) => (b.capacity - b.booked) - (a.capacity - a.booked)),
+    [currentWeekRows],
+  );
 
   return (
     <div className="space-y-6">
@@ -117,6 +132,46 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
+      {stalePipeline.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Stale pipeline — needs a decision ({stalePipeline.length})</CardTitle>
+            <CardDescription>
+              Pipeline engagements whose expected start date has passed. Convert to active or close them so forecasts stay honest.{" "}
+              <Link to="/projects?status=pipeline" className="underline">
+                View all in Projects
+              </Link>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Engagement</TableHead>
+                  <TableHead>Expected start</TableHead>
+                  <TableHead className="text-right">Weeks overdue</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {stalePipeline.slice(0, 5).map((p) => (
+                  <TableRow key={p.projectId}>
+                    <TableCell className="font-medium">
+                      <Link to={`/projects/${p.projectId}`} className="hover:underline">
+                        {p.clientName} — {p.projectName}
+                      </Link>
+                    </TableCell>
+                    <TableCell>{p.startDate}</TableCell>
+                    <TableCell className="text-right text-[var(--color-over)] font-medium">
+                      {Math.max(1, Math.floor((new Date(`${weekStart}T00:00:00`).getTime() - new Date(`${p.startDate}T00:00:00`).getTime()) / (7 * 24 * 3600 * 1000)))}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -150,7 +205,15 @@ export default function DashboardPage() {
                     </TableRow>
                   );
                 })}
-                {(util.data?.byProject.length ?? 0) === 0 && (
+                {util.isLoading &&
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell colSpan={2}>
+                        <Skeleton className="h-5 w-full" />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                {!util.isLoading && (util.data?.byProject.length ?? 0) === 0 && (
                   <TableRow>
                     <TableCell colSpan={2} className="text-center text-[var(--color-muted-foreground)]">
                       No allocations in range.
@@ -164,24 +227,44 @@ export default function DashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>People</CardTitle>
-            <CardDescription>Click a person to drill into their allocations.</CardDescription>
+            <CardTitle>People — availability this week</CardTitle>
+            <CardDescription>Sorted by free hours. Click a person to drill into their allocations.</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Title</TableHead>
+                  <TableHead>Rank · Practice</TableHead>
+                  <TableHead className="text-right">Booked</TableHead>
+                  <TableHead className="text-right">Free</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {people.data?.map((p) => (
-                  <TableRow key={p.personId} className="cursor-pointer" onClick={() => setDrill({ id: p.personId, name: p.displayName })}>
-                    <TableCell className="font-medium">{p.displayName}</TableCell>
-                    <TableCell>{p.jobTitle ?? "—"}</TableCell>
-                  </TableRow>
-                ))}
+                {(allocations.isLoading || people.isLoading) &&
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell colSpan={4}>
+                        <Skeleton className="h-5 w-full" />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                {availabilityRows.map((r) => {
+                  const free = r.capacity - r.booked;
+                  const status = availabilityStatus(free);
+                  return (
+                    <TableRow key={r.person.personId} className="cursor-pointer" onClick={() => setDrill({ id: r.person.personId, name: r.person.displayName })}>
+                      <TableCell className="font-medium">{r.person.displayName}</TableCell>
+                      <TableCell className="text-xs text-[var(--color-muted-foreground)]">
+                        {[r.person.rank, r.person.practice].filter(Boolean).join(" · ") || "—"}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">{r.booked}h</TableCell>
+                      <TableCell className="text-right">
+                        <Badge variant={status === "ok" ? "ok" : status === "warn" ? "warn" : "over"}>{free}h</Badge>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </CardContent>

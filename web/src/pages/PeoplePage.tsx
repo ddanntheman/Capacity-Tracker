@@ -129,9 +129,6 @@ export default function PeoplePage() {
                   <TableHead>Rank</TableHead>
                   <TableHead>Practice</TableHead>
                   <TableHead className="text-right">Target %</TableHead>
-                  {isLeadership && <TableHead className="text-right">Cost $/hr</TableHead>}
-                  {isLeadership && <TableHead className="text-right">Bill $/hr</TableHead>}
-                  <TableHead>Manager</TableHead>
                   <TableHead>Status</TableHead>
                   {canEdit && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
@@ -180,37 +177,6 @@ export default function PeoplePage() {
                         onSave={(v) => inlineUpdate.mutate({ person: p, patch: { utilizationTarget: v === "" ? null : Number(v) } })}
                       />
                     </TableCell>
-                    {isLeadership && (
-                      <TableCell className="text-right">
-                        <InlineInput
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={p.costRate != null ? String(p.costRate) : ""}
-                          display={p.costRate != null ? `$${p.costRate.toLocaleString()}` : "—"}
-                          disabled={!canEdit}
-                          className="justify-end"
-                          inputClassName="text-right"
-                          onSave={(v) => inlineUpdate.mutate({ person: p, patch: { costRate: v === "" ? null : Number(v) } })}
-                        />
-                      </TableCell>
-                    )}
-                    {isLeadership && (
-                      <TableCell className="text-right">
-                        <InlineInput
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={p.billRate != null ? String(p.billRate) : ""}
-                          display={p.billRate != null ? `$${p.billRate.toLocaleString()}` : "—"}
-                          disabled={!canEdit}
-                          className="justify-end"
-                          inputClassName="text-right"
-                          onSave={(v) => inlineUpdate.mutate({ person: p, patch: { billRate: v === "" ? null : Number(v) } })}
-                        />
-                      </TableCell>
-                    )}
-                    <TableCell>{people.find((m) => m.personId === p.managerId)?.displayName ?? "—"}</TableCell>
                     <TableCell>
                       {p.isActive ? <Badge variant="ok">Active</Badge> : <Badge variant="secondary">Inactive</Badge>}
                     </TableCell>
@@ -235,7 +201,7 @@ export default function PeoplePage() {
                 ))}
                 {people.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7 + (isLeadership ? 2 : 0) + (canEdit ? 1 : 0)} className="text-center text-[var(--color-muted-foreground)]">
+                    <TableCell colSpan={6 + (canEdit ? 1 : 0)} className="text-center text-[var(--color-muted-foreground)]">
                       No people yet.
                     </TableCell>
                   </TableRow>
@@ -323,23 +289,18 @@ function MergePersonDialog({
   );
 }
 
-export function PersonDialog({ people, person }: { people: Person[]; person?: Person }) {
-  const { hasRole } = useAuth();
-  const isLeadership = hasRole("leadership");
+export function PersonDialog({ person }: { people?: Person[]; person?: Person }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const { data: practiceList = [] } = useQuery({ queryKey: ["practices"], queryFn: () => api.listPractices(), enabled: open });
   const [displayName, setDisplayName] = useState(person?.displayName ?? "");
   const [email, setEmail] = useState(person?.email ?? "");
   const [jobTitle, setJobTitle] = useState(person?.jobTitle ?? "");
-  const [managerId, setManagerId] = useState(person?.managerId ?? "");
   const [rank, setRank] = useState(person?.rank ?? "");
   const [practice, setPractice] = useState(person?.practice ?? "");
   const [location, setLocation] = useState(person?.location ?? "");
   const [phone, setPhone] = useState(person?.phone ?? "");
   const [startDate, setStartDate] = useState(person?.startDate ?? "");
-  const [costRate, setCostRate] = useState(person?.costRate != null ? String(person.costRate) : "");
-  const [billRate, setBillRate] = useState(person?.billRate != null ? String(person.billRate) : "");
   const [utilizationTarget, setUtilizationTarget] = useState(
     person?.utilizationTarget != null ? String(person.utilizationTarget) : "",
   );
@@ -354,14 +315,14 @@ export function PersonDialog({ people, person }: { people: Person[]; person?: Pe
         displayName,
         email,
         jobTitle: jobTitle || null,
-        managerId: managerId || null,
+        managerId: person?.managerId ?? null,
         rank: rank || null,
         practice: practice || null,
         location: location || null,
         phone: phone || null,
         startDate: startDate || null,
-        costRate: costRate === "" ? null : Number(costRate),
-        billRate: billRate === "" ? null : Number(billRate),
+        costRate: person?.costRate ?? null,
+        billRate: person?.billRate ?? null,
         utilizationTarget: utilizationTarget === "" ? null : Number(utilizationTarget),
         weeklyCapacityHours: weeklyCapacityHours === "" ? 40 : Number(weeklyCapacityHours),
         skills: skills || null,
@@ -463,24 +424,6 @@ export function PersonDialog({ people, person }: { people: Person[]; person?: Pe
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Manager</Label>
-            <Select value={managerId || "none"} onValueChange={(v) => setManagerId(v === "none" ? "" : v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="No manager" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No manager</SelectItem>
-                {people
-                  .filter((m) => m.personId !== person?.personId)
-                  .map((m) => (
-                    <SelectItem key={m.personId} value={m.personId}>
-                      {m.displayName}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
             <Label htmlFor="location">Location</Label>
             <Input id="location" value={location} onChange={(e) => setLocation(e.target.value)} />
           </div>
@@ -514,32 +457,6 @@ export function PersonDialog({ people, person }: { people: Person[]; person?: Pe
               onChange={(e) => setWeeklyCapacityHours(e.target.value)}
             />
           </div>
-          {isLeadership && (
-            <>
-              <div className="space-y-1.5">
-                <Label htmlFor="costRate">Cost rate ($/hr)</Label>
-                <Input
-                  id="costRate"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={costRate}
-                  onChange={(e) => setCostRate(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="billRate">Bill rate ($/hr)</Label>
-                <Input
-                  id="billRate"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={billRate}
-                  onChange={(e) => setBillRate(e.target.value)}
-                />
-              </div>
-            </>
-          )}
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="skills">Skills (comma-separated)</Label>
             <Input id="skills" value={skills} onChange={(e) => setSkills(e.target.value)} />

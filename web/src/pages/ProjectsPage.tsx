@@ -299,6 +299,7 @@ function ProjectDialog({ project }: { project?: Project }) {
                 <SelectItem value="none">—</SelectItem>
                 <SelectItem value="T&M">Time &amp; materials</SelectItem>
                 <SelectItem value="Fixed fee">Fixed fee</SelectItem>
+                <SelectItem value="Milestone">Milestone</SelectItem>
                 <SelectItem value="Retainer">Retainer</SelectItem>
               </SelectContent>
             </Select>

@@ -13,16 +13,10 @@ import { PersonDialog } from "@/pages/PeoplePage";
 const LOOKBACK_WEEKS = 8;
 const LOOKAHEAD_WEEKS = 4;
 
-function formatMoney(value: number | null): string {
-  if (value == null) return "—";
-  return value.toLocaleString(undefined, { style: "currency", currency: "USD" });
-}
-
 export default function PersonProfilePage() {
   const { id = "" } = useParams();
   const { hasRole } = useAuth();
   const canEdit = hasRole("editor");
-  const isLeadership = hasRole("leadership");
 
   const rangeStart = shiftWeeks(currentWeekStart(), -LOOKBACK_WEEKS);
   const totalWeeks = LOOKBACK_WEEKS + LOOKAHEAD_WEEKS;
@@ -59,8 +53,6 @@ export default function PersonProfilePage() {
     );
   }
 
-  const manager = people.find((m) => m.personId === person.managerId);
-  const directReports = people.filter((p) => p.managerId === person.personId && p.isActive);
   const skills = (person.skills ?? "")
     .split(",")
     .map((s) => s.trim())
@@ -86,11 +78,6 @@ export default function PersonProfilePage() {
       project: projects.find((p) => p.projectId === a.projectId),
     }));
 
-  const margin =
-    person.costRate != null && person.billRate != null && person.billRate > 0
-      ? Math.round(((person.billRate - person.costRate) / person.billRate) * 100)
-      : null;
-
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -111,7 +98,7 @@ export default function PersonProfilePage() {
         {canEdit && <PersonDialog people={people} person={person} />}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Contact & details</CardTitle>
@@ -121,18 +108,6 @@ export default function PersonProfilePage() {
             <ProfileRow label="Phone" value={person.phone ?? "—"} />
             <ProfileRow label="Location" value={person.location ?? "—"} />
             <ProfileRow label="Start date" value={person.startDate ?? "—"} />
-            <ProfileRow
-              label="Manager"
-              value={
-                manager ? (
-                  <Link to={`/people/${manager.personId}`} className="hover:underline">
-                    {manager.displayName}
-                  </Link>
-                ) : (
-                  "—"
-                )
-              }
-            />
             {skills.length > 0 && (
               <div className="flex flex-wrap gap-1 pt-1">
                 {skills.map((s) => (
@@ -175,18 +150,6 @@ export default function PersonProfilePage() {
           </CardContent>
         </Card>
 
-        {isLeadership && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Financials</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <ProfileRow label="Cost rate" value={`${formatMoney(person.costRate)}${person.costRate != null ? "/hr" : ""}`} />
-              <ProfileRow label="Bill rate" value={`${formatMoney(person.billRate)}${person.billRate != null ? "/hr" : ""}`} />
-              <ProfileRow label="Implied margin" value={margin != null ? `${margin}%` : "—"} />
-            </CardContent>
-          </Card>
-        )}
       </div>
 
       <Card>
@@ -239,7 +202,7 @@ export default function PersonProfilePage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div>
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Current projects</CardTitle>
@@ -270,28 +233,6 @@ export default function PersonProfilePage() {
                 )}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Direct reports</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {directReports.length === 0 ? (
-              <p className="text-sm text-[var(--color-muted-foreground)]">No direct reports.</p>
-            ) : (
-              <ul className="space-y-1 text-sm">
-                {directReports.map((r) => (
-                  <li key={r.personId}>
-                    <Link to={`/people/${r.personId}`} className="hover:underline">
-                      {r.displayName}
-                    </Link>
-                    <span className="text-[var(--color-muted-foreground)]"> {r.rank ? `· ${r.rank}` : ""}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
           </CardContent>
         </Card>
       </div>

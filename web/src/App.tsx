@@ -14,10 +14,8 @@ import ResourceSummaryPage from "@/pages/ResourceSummaryPage";
 import ClientsPage from "@/pages/ClientsPage";
 import ClientDetailPage from "@/pages/ClientDetailPage";
 import ExecutiveSummaryPage from "@/pages/ExecutiveSummaryPage";
-import ActualsPage from "@/pages/ActualsPage";
 import BenchPage from "@/pages/BenchPage";
 import PracticesPage from "@/pages/PracticesPage";
-import RevenuePage from "@/pages/RevenuePage";
 
 export default function App() {
   const { me, isLoading, error } = useAuth();
@@ -117,26 +115,10 @@ export default function App() {
           }
         />
         <Route
-          path="/actuals"
-          element={
-            <RequireRole roles={["viewer", "editor", "leadership"]}>
-              <ActualsPage />
-            </RequireRole>
-          }
-        />
-        <Route
           path="/bench"
           element={
             <RequireRole roles={["editor", "leadership"]}>
               <BenchPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="/revenue"
-          element={
-            <RequireRole roles={["leadership"]}>
-              <RevenuePage />
             </RequireRole>
           }
         />

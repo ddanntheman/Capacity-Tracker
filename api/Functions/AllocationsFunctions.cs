@@ -148,41 +148,41 @@ public class AllocationsFunctions(CapacityDbContext db, RequestAuthorizer auth, 
     /// clears the range.
     /// </summary>
     [Function("RangeUpsertAllocations")]
-    public async Task<IActionResult> RangeUpsert(
+    public async Task<RangeAllocationWriteOutput> RangeUpsert(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "allocations/range")] HttpRequest req)
     {
         var result = auth.Authorize(req, AppRoles.Editor);
         if (!result.Allowed)
         {
-            return result.Error!;
+            return RangeHttp(result.Error!);
         }
 
         var body = await req.ReadFromJsonAsync<RangeUpsertAllocationRequest>();
         if (body is null)
         {
-            return new BadRequestResult();
+            return RangeHttp(new BadRequestResult());
         }
 
         if (body.Weeks is < 1 or > 52)
         {
-            return new BadRequestObjectResult(new { error = "Weeks must be between 1 and 52." });
+            return RangeHttp(new BadRequestObjectResult(new { error = "Weeks must be between 1 and 52." }));
         }
 
         if (body.HoursPerWeek is < 0 or > MaxWeeklyHours)
         {
-            return new BadRequestObjectResult(new { error = $"Hours must be between 0 and {MaxWeeklyHours}." });
+            return RangeHttp(new BadRequestObjectResult(new { error = $"Hours must be between 0 and {MaxWeeklyHours}." }));
         }
 
         var person = await db.People.AsNoTracking().FirstOrDefaultAsync(p => p.PersonId == body.PersonId && p.IsActive);
         if (person is null)
         {
-            return new BadRequestObjectResult(new { error = "Unknown or inactive person." });
+            return RangeHttp(new BadRequestObjectResult(new { error = "Unknown or inactive person." }));
         }
 
         var projectOpen = await db.Projects.AnyAsync(p => p.ProjectId == body.ProjectId && p.Status != ProjectStatus.Closed);
         if (!projectOpen)
         {
-            return new BadRequestObjectResult(new { error = "Project is closed or does not exist." });
+            return RangeHttp(new BadRequestObjectResult(new { error = "Project is closed or does not exist." }));
         }
 
         var firstWeek = WeekHelper.WeekStartOf(body.WeekStart);
@@ -195,6 +195,7 @@ public class AllocationsFunctions(CapacityDbContext db, RequestAuthorizer auth, 
 
         var userOid = result.User!.Oid;
         var affected = new List<Allocation>();
+        var messages = new List<SignalRMessageAction>();
         for (var week = firstWeek; week < lastWeekExclusive; week = week.AddDays(7))
         {
             existing.TryGetValue(week, out var row);
@@ -204,6 +205,7 @@ public class AllocationsFunctions(CapacityDbContext db, RequestAuthorizer auth, 
                 {
                     db.Allocations.Remove(row);
                     audit.Record(nameof(Allocation), row.AllocationId.ToString(), nameof(Allocation.Hours), row.Hours.ToString(), "0 (removed)", userOid);
+                    messages.Add(ChangeMessage("removed", row));
                 }
                 continue;
             }
@@ -220,18 +222,24 @@ public class AllocationsFunctions(CapacityDbContext db, RequestAuthorizer auth, 
                 };
                 db.Allocations.Add(row);
                 audit.Record(nameof(Allocation), row.AllocationId.ToString(), "created", null, body.HoursPerWeek.ToString(), userOid);
+                messages.Add(ChangeMessage("created", row));
             }
             else if (row.Hours != body.HoursPerWeek)
             {
                 audit.Record(nameof(Allocation), row.AllocationId.ToString(), nameof(Allocation.Hours), row.Hours.ToString(), body.HoursPerWeek.ToString(), userOid);
                 row.Hours = body.HoursPerWeek;
+                messages.Add(ChangeMessage("updated", row));
             }
 
             affected.Add(row);
         }
 
         await db.SaveChangesAsync();
-        return new OkObjectResult(affected.Select(AllocationDto.From));
+        return new RangeAllocationWriteOutput
+        {
+            SignalRMessages = [.. messages],
+            HttpResponse = new OkObjectResult(affected.Select(AllocationDto.From)),
+        };
     }
 
     [Function("DeleteAllocation")]
@@ -278,6 +286,15 @@ public class AllocationsFunctions(CapacityDbContext db, RequestAuthorizer auth, 
     }
 
     private static AllocationWriteOutput Http(IActionResult result) => new() { HttpResponse = result };
+
+    private static RangeAllocationWriteOutput RangeHttp(IActionResult result) => new() { HttpResponse = result };
+
+    private static SignalRMessageAction ChangeMessage(string action, Allocation a) =>
+        new(Realtime.Realtime.AllocationChangedEvent,
+            [new AllocationChange(action, a.AllocationId, a.PersonId, a.ProjectId, a.WeekStart.ToString("yyyy-MM-dd"), a.Hours)])
+        {
+            GroupName = Realtime.Realtime.WeekGroup(a.WeekStart),
+        };
 
     private static bool TryParseWeek(string? value, out DateOnly week) => DateOnly.TryParse(value, out week);
 

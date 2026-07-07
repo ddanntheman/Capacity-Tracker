@@ -154,6 +154,8 @@ public record MergePersonRequest(Guid TargetPersonId);
 
 public record MergeProjectRequest(Guid TargetProjectId);
 
+public record SplitProjectRequest(string[] NewNames);
+
 // Actuals
 public record ActualHoursDto(Guid ActualHoursId, Guid PersonId, DateOnly Month, decimal ChargeableHours)
 {

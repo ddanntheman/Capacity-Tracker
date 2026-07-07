@@ -16,6 +16,7 @@ import ClientDetailPage from "@/pages/ClientDetailPage";
 import ExecutiveSummaryPage from "@/pages/ExecutiveSummaryPage";
 import BenchPage from "@/pages/BenchPage";
 import PracticesPage from "@/pages/PracticesPage";
+import PracticeDetailPage from "@/pages/PracticeDetailPage";
 
 export default function App() {
   const { me, isLoading, error } = useAuth();
@@ -129,6 +130,14 @@ export default function App() {
           element={
             <RequireRole roles={["viewer", "editor", "leadership"]}>
               <PracticesPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/practices/:id"
+          element={
+            <RequireRole roles={["viewer", "editor", "leadership"]}>
+              <PracticeDetailPage />
             </RequireRole>
           }
         />

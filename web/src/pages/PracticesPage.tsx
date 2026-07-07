@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -106,12 +107,20 @@ export default function PracticesPage() {
                 {practices.map((p) => (
                   <TableRow key={p.practiceId}>
                     <TableCell className="font-medium">
-                      <InlineInput
-                        value={p.name}
-                        display={p.name}
-                        disabled={!canEdit}
-                        onSave={(v) => v.trim() && update.mutate({ practice: p, patch: { name: v.trim() } })}
-                      />
+                      <div className="flex items-center gap-1">
+                        <InlineInput
+                          value={p.name}
+                          display={p.name}
+                          disabled={!canEdit}
+                          onSave={(v) => v.trim() && update.mutate({ practice: p, patch: { name: v.trim() } })}
+                        />
+                        <Link
+                          to={`/practices/${p.practiceId}`}
+                          className="shrink-0 text-xs text-[var(--color-muted-foreground)] hover:underline"
+                        >
+                          Open
+                        </Link>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <InlineSelect

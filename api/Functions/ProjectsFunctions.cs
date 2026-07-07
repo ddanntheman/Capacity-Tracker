@@ -204,6 +204,63 @@ WHERE s.[ProjectId] = {source.ProjectId}
         return new OkObjectResult(ProjectDto.From(target!, result.User!.HasRole(AppRoles.Leadership)));
     }
 
+    [Function("SplitProject")]
+    public async Task<IActionResult> Split(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "projects/{id:guid}/split")] HttpRequest req, Guid id)
+    {
+        var result = auth.Authorize(req, AppRoles.Editor);
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
+
+        var body = await req.ReadFromJsonAsync<SplitProjectRequest>();
+        var names = body?.NewNames?.Select(n => n?.Trim() ?? "").Where(n => n.Length > 0).Distinct().ToList() ?? [];
+        if (names.Count < 2)
+        {
+            return new BadRequestObjectResult(new { error = "Provide at least two names to split into." });
+        }
+
+        var source = await db.Projects.FirstOrDefaultAsync(p => p.ProjectId == id);
+        if (source is null)
+        {
+            return new NotFoundResult();
+        }
+
+        var originalName = source.ProjectName;
+
+        // The first name keeps the source project (and its allocations); the rest become sibling
+        // engagements under the same client so combined rows can be broken apart without losing history.
+        source.ProjectName = names[0];
+        audit.Record(nameof(Project), source.ProjectId.ToString(), "split", originalName, names[0], result.User!.Oid);
+
+        var created = new List<Project> { source };
+        foreach (var name in names.Skip(1))
+        {
+            var sibling = new Project
+            {
+                ProjectId = Guid.NewGuid(),
+                ClientName = source.ClientName,
+                ProjectName = name,
+                StartDate = source.StartDate,
+                EndDate = source.EndDate,
+                Status = source.Status,
+                DealValue = null,
+                WinProbability = source.WinProbability,
+                EngagementType = source.EngagementType,
+                DeliveryLeadId = source.DeliveryLeadId,
+                Notes = source.Notes,
+            };
+            db.Projects.Add(sibling);
+            audit.Record(nameof(Project), sibling.ProjectId.ToString(), "created", null, $"split from {originalName}", result.User!.Oid);
+            created.Add(sibling);
+        }
+
+        await db.SaveChangesAsync();
+        var includeFinancials = result.User!.HasRole(AppRoles.Leadership);
+        return new OkObjectResult(created.Select(p => ProjectDto.From(p, includeFinancials)).ToList());
+    }
+
     private Task EnsureClient(string name) => ClientsFunctions.InsertClientIfMissing(db, name);
 
     private static int? ClampProbability(int? value) => value is null ? null : Math.Clamp(value.Value, 0, 100);

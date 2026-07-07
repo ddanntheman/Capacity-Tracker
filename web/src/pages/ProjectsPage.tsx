@@ -31,6 +31,8 @@ export default function ProjectsPage() {
   const isLeadership = hasRole("leadership");
   const qc = useQueryClient();
   const [mergeSource, setMergeSource] = useState<Project | null>(null);
+  const [splitSource, setSplitSource] = useState<Project | null>(null);
+  const [groupByClient, setGroupByClient] = useState(false);
 
   const filters = useUrlFilters({ q: "", status: "all", type: "all" });
   const search = useSearchText(filters);
@@ -87,6 +89,26 @@ export default function ProjectsPage() {
     onError: () => toast.error("Failed to archive"),
   });
 
+  const colSpan = 7 + (isLeadership ? 1 : 0) + (canEdit ? 1 : 0);
+
+  type Row = { kind: "header"; client: string; count: number } | { kind: "project"; project: Project };
+  const groupedRows = useMemo<Row[]>(() => {
+    if (!groupByClient) return projects.map((project) => ({ kind: "project", project }));
+    const byClient = new Map<string, Project[]>();
+    for (const p of projects) {
+      const list = byClient.get(p.clientName) ?? [];
+      list.push(p);
+      byClient.set(p.clientName, list);
+    }
+    const rows: Row[] = [];
+    for (const client of [...byClient.keys()].sort((a, b) => a.localeCompare(b))) {
+      const list = byClient.get(client)!;
+      rows.push({ kind: "header", client, count: list.length });
+      for (const project of list) rows.push({ kind: "project", project });
+    }
+    return rows;
+  }, [projects, groupByClient]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -128,6 +150,13 @@ export default function ProjectsPage() {
             ))}
           </SelectContent>
         </Select>
+        <Button
+          variant={groupByClient ? "default" : "outline"}
+          size="sm"
+          onClick={() => setGroupByClient((g) => !g)}
+        >
+          Group by client
+        </Button>
       </div>
 
       <Card>
@@ -150,7 +179,66 @@ export default function ProjectsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {projects.map((p) => (
+                {groupedRows.map((row) =>
+                  row.kind === "header" ? (
+                    <TableRow key={`h-${row.client}`} className="bg-[var(--color-muted)]/40">
+                      <TableCell colSpan={colSpan} className="font-semibold">
+                        {clientIdByName.has(row.client) ? (
+                          <Link to={`/clients/${clientIdByName.get(row.client)}`} className="hover:underline">
+                            {row.client}
+                          </Link>
+                        ) : (
+                          row.client
+                        )}{" "}
+                        <span className="font-normal text-[var(--color-muted-foreground)]">({row.count})</span>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    renderProjectRow(row.project)
+                  ),
+                )}
+                {projects.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={colSpan} className="text-center text-[var(--color-muted-foreground)]">
+                      No projects match the current filters.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {mergeSource && (
+        <MergeProjectDialog
+          source={mergeSource}
+          targets={allProjects.filter((p) => p.projectId !== mergeSource.projectId)}
+          onClose={() => setMergeSource(null)}
+          onMerged={() => {
+            setMergeSource(null);
+            void qc.invalidateQueries({ queryKey: ["projects"] });
+            void qc.invalidateQueries({ queryKey: ["allocations"] });
+            void qc.invalidateQueries({ queryKey: ["clients"] });
+          }}
+        />
+      )}
+      {splitSource && (
+        <SplitProjectDialog
+          source={splitSource}
+          onClose={() => setSplitSource(null)}
+          onSplit={() => {
+            setSplitSource(null);
+            void qc.invalidateQueries({ queryKey: ["projects"] });
+            void qc.invalidateQueries({ queryKey: ["clients"] });
+          }}
+        />
+      )}
+    </div>
+  );
+
+  function renderProjectRow(p: Project) {
+    return (
                   <TableRow key={p.projectId}>
                     <TableCell className="font-medium">
                       {clientIdByName.has(p.clientName) ? (
@@ -245,6 +333,9 @@ export default function ProjectsPage() {
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <ProjectDialog project={p} />
+                          <Button variant="outline" size="sm" onClick={() => setSplitSource(p)}>
+                            Split
+                          </Button>
                           {isLeadership && (
                             <Button variant="outline" size="sm" onClick={() => setMergeSource(p)}>
                               Merge
@@ -259,35 +350,8 @@ export default function ProjectsPage() {
                       </TableCell>
                     )}
                   </TableRow>
-                ))}
-                {projects.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={7 + (isLeadership ? 1 : 0) + (canEdit ? 1 : 0)} className="text-center text-[var(--color-muted-foreground)]">
-                      No projects match the current filters.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      {mergeSource && (
-        <MergeProjectDialog
-          source={mergeSource}
-          targets={allProjects.filter((p) => p.projectId !== mergeSource.projectId)}
-          onClose={() => setMergeSource(null)}
-          onMerged={() => {
-            setMergeSource(null);
-            void qc.invalidateQueries({ queryKey: ["projects"] });
-            void qc.invalidateQueries({ queryKey: ["allocations"] });
-            void qc.invalidateQueries({ queryKey: ["clients"] });
-          }}
-        />
-      )}
-    </div>
-  );
+    );
+  }
 }
 
 function MergeProjectDialog({
@@ -343,6 +407,81 @@ function MergeProjectDialog({
           </Button>
           <Button onClick={() => merge.mutate()} disabled={!targetId || merge.isPending}>
             {merge.isPending ? "Merging…" : "Merge"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SplitProjectDialog({
+  source,
+  onClose,
+  onSplit,
+}: {
+  source: Project;
+  onClose: () => void;
+  onSplit: () => void;
+}) {
+  const guessNames = () =>
+    source.projectName
+      .split(/[/,|+&]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  const initial = guessNames();
+  const [names, setNames] = useState<string[]>(initial.length >= 2 ? initial : [source.projectName, ""]);
+
+  const setName = (i: number, v: string) => setNames((prev) => prev.map((n, idx) => (idx === i ? v : n)));
+  const addName = () => setNames((prev) => [...prev, ""]);
+  const removeName = (i: number) => setNames((prev) => prev.filter((_, idx) => idx !== i));
+
+  const split = useMutation({
+    mutationFn: () => api.splitProject(source.projectId, names.map((n) => n.trim()).filter(Boolean)),
+    onSuccess: () => {
+      toast.success("Project split");
+      onSplit();
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? "Provide at least two distinct names" : "Failed to split project"),
+  });
+
+  const validCount = names.map((n) => n.trim()).filter(Boolean).length;
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Split “{source.clientName} — {source.projectName}”</DialogTitle>
+          <DialogDescription>
+            The first name keeps this project and its existing allocations; each additional name becomes a new
+            engagement under {source.clientName} (copying dates, status, and type). Re-staff the new engagements as
+            needed.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          {names.map((n, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <Input
+                value={n}
+                placeholder={i === 0 ? "Keeps allocations" : "New engagement"}
+                onChange={(e) => setName(i, e.target.value)}
+              />
+              {names.length > 2 && (
+                <Button variant="outline" size="sm" onClick={() => removeName(i)}>
+                  Remove
+                </Button>
+              )}
+            </div>
+          ))}
+          <Button variant="outline" size="sm" onClick={addName}>
+            <Plus className="size-4" /> Add name
+          </Button>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={() => split.mutate()} disabled={validCount < 2 || split.isPending}>
+            {split.isPending ? "Splitting…" : "Split"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -12,6 +12,7 @@ import { PersonDialog } from "@/pages/PeoplePage";
 
 const LOOKBACK_WEEKS = 8;
 const LOOKAHEAD_WEEKS = 4;
+const FORECAST_MAX_WEEKS = 52;
 
 export default function PersonProfilePage() {
   const { id = "" } = useParams();
@@ -34,6 +35,12 @@ export default function PersonProfilePage() {
   const { data: allocations = [] } = useQuery({
     queryKey: ["allocations", "person", id, rangeStart, totalWeeks],
     queryFn: () => api.listAllocations(rangeStart, totalWeeks, id),
+    enabled: !!id,
+  });
+  const forecastStart = currentWeekStart();
+  const { data: forecastAllocations = [] } = useQuery({
+    queryKey: ["allocations", "forecast", id, forecastStart, FORECAST_MAX_WEEKS],
+    queryFn: () => api.listAllocations(forecastStart, FORECAST_MAX_WEEKS, id),
     enabled: !!id,
   });
 
@@ -77,6 +84,33 @@ export default function PersonProfilePage() {
       ...a,
       project: projects.find((p) => p.projectId === a.projectId),
     }));
+
+  // Forecast horizon runs from the current week to the furthest week that has any
+  // committed or pipeline work (variable, not a fixed quarter).
+  const projectStatusById = new Map(projects.map((p) => [p.projectId, p.status]));
+  let horizonEnd = today;
+  let committedHours = 0;
+  let pipelineHours = 0;
+  let hasForecastWork = false;
+  for (const a of forecastAllocations) {
+    if (a.weekStart < today) continue;
+    const status = projectStatusById.get(a.projectId);
+    if (!status || status === "closed") continue;
+    hasForecastWork = true;
+    if (a.weekStart > horizonEnd) horizonEnd = a.weekStart;
+    if (status === "pipeline") pipelineHours += a.hours;
+    else committedHours += a.hours;
+  }
+  const horizonWeeks = hasForecastWork
+    ? Math.round((new Date(horizonEnd).getTime() - new Date(today).getTime()) / (7 * 24 * 3600 * 1000)) + 1
+    : 0;
+  const forecastCapacity = horizonWeeks * capacity;
+  const forecastHours = committedHours + pipelineHours;
+  const forecastUtil = forecastCapacity > 0 ? Math.round((forecastHours / forecastCapacity) * 100) : null;
+  const targetBillableHours =
+    person.utilizationTarget != null ? Math.round((person.utilizationTarget / 100) * forecastCapacity) : null;
+  const onTrack =
+    person.utilizationTarget != null && forecastUtil != null ? forecastUtil >= person.utilizationTarget : null;
 
   return (
     <div className="space-y-6">
@@ -151,6 +185,38 @@ export default function PersonProfilePage() {
         </Card>
 
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Forecast</CardTitle>
+          <p className="text-sm text-[var(--color-muted-foreground)]">
+            {horizonWeeks > 0
+              ? `Committed + pipeline over the next ${horizonWeeks} ${horizonWeeks === 1 ? "week" : "weeks"} (through ${weekLabel(horizonEnd)}).`
+              : "No committed or pipeline work booked ahead."}
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          <ProfileRow label="Committed hrs" value={`${committedHours} hrs`} />
+          <ProfileRow label="Pipeline hrs" value={`${pipelineHours} hrs`} />
+          <ProfileRow label="Forecast billable hrs" value={`${forecastHours} hrs`} />
+          <ProfileRow
+            label="Target billable hrs"
+            value={targetBillableHours != null ? `${targetBillableHours} hrs` : "—"}
+          />
+          <ProfileRow label="Forecast utilization" value={forecastUtil != null ? `${forecastUtil}%` : "—"} />
+          {onTrack != null && (
+            <div className="pt-1">
+              {onTrack ? (
+                <Badge variant="ok">On track vs target ({person.utilizationTarget}%)</Badge>
+              ) : (
+                <Badge variant="over">
+                  {(person.utilizationTarget ?? 0) - (forecastUtil ?? 0)}% below target ({person.utilizationTarget}%)
+                </Badge>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { AlertTriangle } from "lucide-react";
 import { api } from "@/lib/api";
 import { currentWeekStart, weekLabel } from "@/lib/weeks";
 import { availabilityStatus, rygBarClass, type Ryg } from "@/lib/ryg";
@@ -18,7 +17,7 @@ function weekBarStatus(utilizationRate: number): Ryg {
   return "warn";
 }
 
-type StatDrill = "utilization" | "allocated" | "people" | "overAllocated";
+type StatDrill = "utilization" | "allocated" | "people" | "overAllocated" | "fullyAvailable" | "partiallyAvailable";
 
 export default function DashboardPage() {
   const weekStart = currentWeekStart();
@@ -26,7 +25,6 @@ export default function DashboardPage() {
   const [drill, setDrill] = useState<{ id: string; name: string } | null>(null);
   const [statDrill, setStatDrill] = useState<StatDrill | null>(null);
   const [weekDrill, setWeekDrill] = useState<string | null>(null);
-  const [showAllAlerts, setShowAllAlerts] = useState(false);
 
   const summary = useQuery({ queryKey: ["dashboard", "summary", weekStart], queryFn: () => api.dashboardSummary(weekStart) });
   const util = useQuery({ queryKey: ["dashboard", "util", weekStart, weeks], queryFn: () => api.dashboardUtilization(weekStart, weeks) });
@@ -55,29 +53,8 @@ export default function DashboardPage() {
       .sort((a, b) => b.booked - a.booked);
   }, [allocations.data, people.data, weekStart]);
 
-  const alerts = useMemo(() => {
-    const list: { key: string; severity: Ryg; text: string }[] = [];
-    const today = new Date().toISOString().slice(0, 10);
-    for (const p of projects.data ?? []) {
-      if (p.status === "pipeline" && p.startDate < today) {
-        list.push({
-          key: `pipeline-${p.projectId}`,
-          severity: "warn",
-          text: `${p.clientName} — ${p.projectName} is still pipeline but its start date (${p.startDate}) has passed.`,
-        });
-      }
-    }
-    for (const r of currentWeekRows) {
-      if (r.booked > r.capacity) {
-        list.push({
-          key: `over-${r.person.personId}`,
-          severity: "over",
-          text: `${r.person.displayName} is overbooked this week (${r.booked}h of ${r.capacity}h capacity).`,
-        });
-      }
-    }
-    return list;
-  }, [projects.data, currentWeekRows]);
+  const fullyAvailable = currentWeekRows.filter((r) => r.booked === 0);
+  const partiallyAvailable = currentWeekRows.filter((r) => r.booked > 0 && r.booked < r.capacity);
 
   return (
     <div className="space-y-6">
@@ -93,37 +70,22 @@ export default function DashboardPage() {
         <StatCard loading={summary.isLoading} title="Over-allocated" value={`${summary.data?.overAllocated ?? 0}`} description={`${summary.data?.underutilized ?? 0} underutilized`} onClick={() => setStatDrill("overAllocated")} />
       </div>
 
-      {alerts.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <AlertTriangle className="size-4 text-[var(--color-warn)]" /> Alerts
-            </CardTitle>
-            <CardDescription>Items that may need attention.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <ul className="space-y-2 text-sm">
-              {(showAllAlerts ? alerts : alerts.slice(0, 5)).map((a) => (
-                <li key={a.key} className="flex items-start gap-3">
-                  <Badge variant={a.severity === "over" ? "over" : "warn"} className="shrink-0">
-                    {a.severity === "over" ? "Overbooked" : "Review"}
-                  </Badge>
-                  <span>{a.text}</span>
-                </li>
-              ))}
-            </ul>
-            {alerts.length > 5 && (
-              <button
-                type="button"
-                onClick={() => setShowAllAlerts((v) => !v)}
-                className="text-sm font-medium text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:underline"
-              >
-                {showAllAlerts ? "Show fewer" : `Show all ${alerts.length} alerts`}
-              </button>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <StatCard
+          loading={allocations.isLoading || people.isLoading}
+          title="Fully available"
+          value={`${fullyAvailable.length}`}
+          description="On the bench this week — no booked hours"
+          onClick={() => setStatDrill("fullyAvailable")}
+        />
+        <StatCard
+          loading={allocations.isLoading || people.isLoading}
+          title="Partially available"
+          value={`${partiallyAvailable.length}`}
+          description="Booked under capacity — free hours this week"
+          onClick={() => setStatDrill("partiallyAvailable")}
+        />
+      </div>
 
       <Card>
         <CardHeader>
@@ -271,6 +233,8 @@ const statDrillTitles: Record<StatDrill, { title: string; description: string }>
   allocated: { title: "Allocated hours derivation", description: "Sum of every person's booked hours for the current week." },
   people: { title: "People breakdown", description: "Active people and how fully each is booked this week." },
   overAllocated: { title: "Over/under allocation", description: "People booked over capacity (red) or with free hours (yellow/green)." },
+  fullyAvailable: { title: "Fully available people", description: "People with zero booked hours this week — ready to staff." },
+  partiallyAvailable: { title: "Partially available people", description: "People booked below capacity this week — free hours to staff." },
 };
 
 function StatDrillDialog({
@@ -285,7 +249,14 @@ function StatDrillDialog({
   onClose: () => void;
 }) {
   const { title, description } = statDrillTitles[kind];
-  const visible = kind === "overAllocated" ? rows.filter((r) => r.booked !== r.capacity) : rows;
+  const visible =
+    kind === "overAllocated"
+      ? rows.filter((r) => r.booked !== r.capacity)
+      : kind === "fullyAvailable"
+        ? rows.filter((r) => r.booked === 0)
+        : kind === "partiallyAvailable"
+          ? rows.filter((r) => r.booked > 0 && r.booked < r.capacity)
+          : rows;
   const totalBooked = rows.reduce((s, r) => s + r.booked, 0);
   const totalCapacity = rows.reduce((s, r) => s + r.capacity, 0);
 

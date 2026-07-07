@@ -34,28 +34,28 @@ export function CommandPalette({ pages }: { pages: PageEntry[] }) {
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const doOpen = () => {
+      setQuery("");
+      setActive(0);
+      setOpen(true);
+      setTimeout(() => inputRef.current?.focus(), 0);
+    };
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setOpen((o) => !o);
+        if (open) setOpen(false);
+        else doOpen();
       }
     };
-    const onOpen = () => setOpen(true);
+    const onOpen = () => doOpen();
     window.addEventListener("keydown", onKey);
     window.addEventListener("command-palette:open", onOpen);
     return () => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("command-palette:open", onOpen);
     };
-  }, []);
-
-  useEffect(() => {
-    if (open) {
-      setQuery("");
-      setActive(0);
-      setTimeout(() => inputRef.current?.focus(), 0);
-    }
   }, [open]);
+
 
   const people = useQuery({ queryKey: ["people", false], queryFn: () => api.listPeople(false), enabled: open });
   const clients = useQuery({ queryKey: ["clients"], queryFn: () => api.listClients(), enabled: open });
@@ -94,8 +94,6 @@ export function CommandPalette({ pages }: { pages: PageEntry[] }) {
       .slice(0, 12);
   }, [pages, people.data, clients.data, projects.data, query]);
 
-  useEffect(() => setActive(0), [query]);
-
   useEffect(() => {
     listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: "nearest" });
   }, [active]);
@@ -124,7 +122,10 @@ export function CommandPalette({ pages }: { pages: PageEntry[] }) {
           <input
             ref={inputRef}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setActive(0);
+            }}
             onKeyDown={(e) => {
               if (e.key === "Escape") setOpen(false);
               if (e.key === "ArrowDown") {

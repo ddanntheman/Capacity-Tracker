@@ -14,6 +14,8 @@ The deployed Static Web App (https://salmon-desert-092eaec10.7.azurestaticapps.n
 4. Auth is mocked in dev: set `ALLOW_DEV_AUTH=true` on the API; the web app sends dev headers for `dev.user@andersenconsulting.com` with editor+leadership roles. No login screen appears.
 
 ## Golden-path flows to exercise
+- **Availability cards**: /dashboard "Fully available" (booked=0) and "Partially available" (0<booked<capacity) cards — click each and verify drill-down row counts equal the card numbers for the current week.
+- Note: Actuals and Revenue tabs may be hidden from nav/routes (utilization refocus); direct URLs should redirect to /dashboard. Cost/bill/manager fields may be hidden on People — check current sprint requirements before asserting their presence.
 - **Bench → staffing**: /bench filters (practice, weeks, min free) → /allocations, click a person×week cell, add hours + "apply to following weeks" → verify bench free hours drop.
 - **Utilization**: /utilization (C/P/A rows, RYG cells), /resource-summary (RYG status badges), /actuals (enter value, reload, check Resource Summary "Actual to date").
 - **Clients/deals**: /clients/:id detail; project edit (win %, engagement type, deal value) on /projects.
@@ -30,7 +32,9 @@ The deployed Static Web App (https://salmon-desert-092eaec10.7.azurestaticapps.n
 ## Gotchas
 - Dashboard briefly renders zeros (0%, 0 people) while loading — wait for data before asserting.
 - Client edit (PUT /api/clients/:id) may fail with a 500 ("SqlServerRetryingExecutionStrategy does not support user-initiated transactions") — a known EF Core bug in ClientsFunctions.cs; check API logs if saves fail. Project edit works and is a good alternative for deal-field testing.
-- Devin browser coordinate clicks and Escape keypresses can be flaky on this app; devinid-based clicks are reliable. To close a Radix dialog, navigate to another route instead of pressing Escape.
+- Devin browser coordinate clicks and Escape keypresses can be flaky on this app; devinid-based clicks are reliable. To close a Radix dialog, click its × button (top-right corner) or navigate to another route instead of pressing Escape.
+- To read Radix select options without a screenshot, parse the saved page HTML for `role="option"` entries (e.g. `re.findall(r'role="option"[^>]*devinid="(\d+)"[\s\S]*?<span[^>]*>([^<]+)</span>', html)`), then click the option's devinid.
+- To deploy an unmerged PR branch to dev, use the same redeploy commands below from the checked-out branch (dotnet may only exist at `~/.dotnet/dotnet`).
 - CDP at localhost:29229 may be unreachable for Playwright scripts; if you need a mobile-width check, try `playwright install chromium` first or note it as untested.
 - Raw SQL in the API might reference wrong table names (e.g. `[ActualHours]` vs the actual `[Actuals]` table) — if an endpoint 500s with "Invalid object name", check func logs (/tmp/func.log) and compare against `CapacityDbContext` DbSet table mappings.
 - Cleanup via SQL works with `sqlcmd -S sql-cap-dev-tfoiku.database.windows.net -d capacity --authentication-method ActiveDirectoryDefault -Q "..."` (uses the az session).

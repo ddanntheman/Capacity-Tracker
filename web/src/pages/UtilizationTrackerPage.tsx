@@ -91,7 +91,7 @@ export default function UtilizationTrackerPage() {
 
   const startOfYear = mondayOf(new Date(new Date().getFullYear(), 0, 7));
 
-  const canEdit = hasRole("editor") || hasRole("leadership");
+  const canEdit = hasRole("editor");
   const overlayPersonId = filters.get("person");
   const overlayPerson = (peopleQuery.data ?? []).find((p) => p.personId === overlayPersonId);
 

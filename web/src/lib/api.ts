@@ -66,6 +66,8 @@ export const api = {
   archiveProject: (id: string) => request<Project>(`/projects/${id}/archive`, { method: "POST" }),
   mergeProject: (id: string, targetProjectId: string) =>
     request<Project>(`/projects/${id}/merge`, { method: "POST", body: JSON.stringify({ targetProjectId }) }),
+  splitProject: (id: string, newNames: string[]) =>
+    request<Project[]>(`/projects/${id}/split`, { method: "POST", body: JSON.stringify({ newNames }) }),
 
   listClients: () => request<Client[]>("/clients"),
   getClient: (id: string) => request<ClientDetail>(`/clients/${id}`),

@@ -36,3 +36,16 @@ public class AllocationWriteOutput
     [HttpResult]
     public IActionResult HttpResponse { get; set; } = new OkResult();
 }
+
+/// <summary>
+/// Multi-output result for range allocation writes: the HTTP response plus one
+/// SignalR message per affected week's group.
+/// </summary>
+public class RangeAllocationWriteOutput
+{
+    [SignalROutput(HubName = Realtime.HubName)]
+    public SignalRMessageAction[] SignalRMessages { get; set; } = [];
+
+    [HttpResult]
+    public IActionResult HttpResponse { get; set; } = new OkResult();
+}

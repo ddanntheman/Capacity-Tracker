@@ -1,7 +1,8 @@
-import type { ReactNode } from "react";
-import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Users, Briefcase, ScrollText, Gauge, ClipboardList, Building2, LineChart, Armchair, Network, Sparkles } from "lucide-react";
+import { useEffect, type ReactNode } from "react";
+import { NavLink, useLocation } from "react-router-dom";
+import { LayoutDashboard, Users, Briefcase, ScrollText, Gauge, ClipboardList, Building2, LineChart, Armchair, Network, Sparkles, Search } from "lucide-react";
 import { authLinks, useAuth } from "@/auth";
+import { CommandPalette } from "@/components/CommandPalette";
 import type { AppRole } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,12 @@ const navItems: NavItem[] = [
 export function Layout({ children }: { children: ReactNode }) {
   const { me, hasRole } = useAuth();
   const items = navItems.filter((i) => hasRole(...i.roles));
+  const location = useLocation();
+
+  useEffect(() => {
+    const match = navItems.find((i) => location.pathname === i.to || location.pathname.startsWith(`${i.to}/`));
+    document.title = match ? `${match.label} · Capacity Tracker` : "Capacity Tracker";
+  }, [location.pathname]);
 
   return (
     <div className="min-h-screen md:grid md:grid-cols-[240px_1fr]">
@@ -59,12 +66,24 @@ export function Layout({ children }: { children: ReactNode }) {
 
       <div className="flex min-h-screen flex-col">
         <header className="flex h-14 items-center justify-between border-b px-6">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event("command-palette:open"))}
+              className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm text-[var(--color-muted-foreground)] hover:bg-[var(--color-accent)]"
+              aria-label="Open search"
+            >
+              <Search className="size-4" />
+              <span className="hidden sm:inline">Search…</span>
+              <kbd className="rounded border px-1.5 py-0.5 text-[10px]">Ctrl K</kbd>
+            </button>
+            <div className="flex items-center gap-2">
             {me?.roles.map((r) => (
               <Badge key={r} variant="secondary" className="capitalize">
                 {r}
               </Badge>
             ))}
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-[var(--color-muted-foreground)]">{me?.displayName}</span>
@@ -75,6 +94,7 @@ export function Layout({ children }: { children: ReactNode }) {
         </header>
         <main className="flex-1 p-6">{children}</main>
       </div>
+      <CommandPalette pages={items.map((i) => ({ to: i.to, label: i.label }))} />
     </div>
   );
 }

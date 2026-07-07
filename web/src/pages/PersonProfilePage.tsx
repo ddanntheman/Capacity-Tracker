@@ -91,13 +91,17 @@ export default function PersonProfilePage() {
   let horizonEnd = today;
   let committedHours = 0;
   let pipelineHours = 0;
+  let hasForecastWork = false;
   for (const a of forecastAllocations) {
     if (a.weekStart < today) continue;
+    const status = projectStatusById.get(a.projectId);
+    if (!status || status === "closed") continue;
+    hasForecastWork = true;
     if (a.weekStart > horizonEnd) horizonEnd = a.weekStart;
-    if (projectStatusById.get(a.projectId) === "pipeline") pipelineHours += a.hours;
+    if (status === "pipeline") pipelineHours += a.hours;
     else committedHours += a.hours;
   }
-  const horizonWeeks = forecastAllocations.some((a) => a.weekStart >= today)
+  const horizonWeeks = hasForecastWork
     ? Math.round((new Date(horizonEnd).getTime() - new Date(today).getTime()) / (7 * 24 * 3600 * 1000)) + 1
     : 0;
   const forecastCapacity = horizonWeeks * capacity;

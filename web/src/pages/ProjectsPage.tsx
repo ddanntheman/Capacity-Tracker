@@ -12,9 +12,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { InlineInput, InlineSelect } from "@/components/InlineEdit";
+import { matchesSearch, useSearchText, useUrlFilters } from "@/lib/urlFilters";
 
 const statusVariant: Record<ProjectStatus, "ok" | "warn" | "secondary"> = {
   active: "ok",
@@ -22,16 +23,36 @@ const statusVariant: Record<ProjectStatus, "ok" | "warn" | "secondary"> = {
   closed: "secondary",
 };
 
+const ENGAGEMENT_TYPES = ["T&M", "Fixed fee", "Milestone", "Retainer"];
+
 export default function ProjectsPage() {
   const { hasRole } = useAuth();
   const canEdit = hasRole("editor");
   const isLeadership = hasRole("leadership");
   const qc = useQueryClient();
+  const [mergeSource, setMergeSource] = useState<Project | null>(null);
 
-  const { data: projects = [], isLoading } = useQuery({ queryKey: ["projects"], queryFn: () => api.listProjects() });
+  const filters = useUrlFilters({ q: "", status: "all", type: "all" });
+  const search = useSearchText(filters);
+  const q = search.text;
+  const statusFilter = filters.get("status");
+  const typeFilter = filters.get("type");
+
+  const { data: allProjects = [], isLoading } = useQuery({ queryKey: ["projects"], queryFn: () => api.listProjects() });
   const { data: clients = [] } = useQuery({ queryKey: ["clients"], queryFn: () => api.listClients() });
 
   const clientIdByName = useMemo(() => new Map(clients.map((c) => [c.name, c.clientId])), [clients]);
+
+  const projects = useMemo(
+    () =>
+      allProjects.filter(
+        (p) =>
+          matchesSearch(q, p.clientName, p.projectName) &&
+          (statusFilter === "all" || p.status === statusFilter) &&
+          (typeFilter === "all" || p.engagementType === typeFilter),
+      ),
+    [allProjects, q, statusFilter, typeFilter],
+  );
 
   const inlineUpdate = useMutation({
     mutationFn: ({ project, patch }: { project: Project; patch: Partial<Project> }) => {
@@ -76,6 +97,39 @@ export default function ProjectsPage() {
         {canEdit && <ProjectDialog />}
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          placeholder="Search client, project…"
+          value={search.text}
+          onChange={(e) => search.onChange(e.target.value)}
+          className="w-56"
+        />
+        <Select value={statusFilter} onValueChange={(v) => filters.set("status", v)}>
+          <SelectTrigger className="w-36">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="pipeline">Pipeline</SelectItem>
+            <SelectItem value="closed">Closed</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={typeFilter} onValueChange={(v) => filters.set("type", v)}>
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All types</SelectItem>
+            {ENGAGEMENT_TYPES.map((t) => (
+              <SelectItem key={t} value={t}>
+                {t}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <Card>
         <CardContent className="pt-6">
           {isLoading ? (
@@ -107,8 +161,25 @@ export default function ProjectsPage() {
                         p.clientName
                       )}
                     </TableCell>
-                    <TableCell>{p.projectName}</TableCell>
-                    <TableCell>{p.engagementType ?? "—"}</TableCell>
+                    <TableCell>
+                      <InlineInput
+                        value={p.projectName}
+                        display={p.projectName}
+                        disabled={!canEdit}
+                        onSave={(v) => v.trim() && inlineUpdate.mutate({ project: p, patch: { projectName: v.trim() } })}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <InlineSelect
+                        value={p.engagementType ?? ""}
+                        display={p.engagementType ?? "—"}
+                        disabled={!canEdit}
+                        allowNone
+                        noneLabel="No type"
+                        options={ENGAGEMENT_TYPES.map((t) => ({ value: t, label: t }))}
+                        onSave={(v) => inlineUpdate.mutate({ project: p, patch: { engagementType: v || null } })}
+                      />
+                    </TableCell>
                     <TableCell>{p.startDate}</TableCell>
                     <TableCell>{p.endDate ?? "—"}</TableCell>
                     <TableCell>
@@ -166,6 +237,11 @@ export default function ProjectsPage() {
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <ProjectDialog project={p} />
+                          {isLeadership && (
+                            <Button variant="outline" size="sm" onClick={() => setMergeSource(p)}>
+                              Merge
+                            </Button>
+                          )}
                           {p.status !== "closed" && (
                             <Button variant="outline" size="sm" onClick={() => archive.mutate(p.projectId)}>
                               Archive
@@ -179,7 +255,7 @@ export default function ProjectsPage() {
                 {projects.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={7 + (isLeadership ? 1 : 0) + (canEdit ? 1 : 0)} className="text-center text-[var(--color-muted-foreground)]">
-                      No projects yet.
+                      No projects match the current filters.
                     </TableCell>
                   </TableRow>
                 )}
@@ -188,7 +264,81 @@ export default function ProjectsPage() {
           )}
         </CardContent>
       </Card>
+
+      {mergeSource && (
+        <MergeProjectDialog
+          source={mergeSource}
+          targets={allProjects.filter((p) => p.projectId !== mergeSource.projectId)}
+          onClose={() => setMergeSource(null)}
+          onMerged={() => {
+            setMergeSource(null);
+            void qc.invalidateQueries({ queryKey: ["projects"] });
+            void qc.invalidateQueries({ queryKey: ["allocations"] });
+            void qc.invalidateQueries({ queryKey: ["clients"] });
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function MergeProjectDialog({
+  source,
+  targets,
+  onClose,
+  onMerged,
+}: {
+  source: Project;
+  targets: Project[];
+  onClose: () => void;
+  onMerged: () => void;
+}) {
+  const [targetId, setTargetId] = useState("");
+
+  const merge = useMutation({
+    mutationFn: () => api.mergeProject(source.projectId, targetId),
+    onSuccess: () => {
+      toast.success("Projects merged");
+      onMerged();
+    },
+    onError: () => toast.error("Failed to merge projects"),
+  });
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Merge “{source.clientName} — {source.projectName}”</DialogTitle>
+          <DialogDescription>
+            All allocations move to the project you pick (hours are summed where the same person-week exists on both)
+            and this project is deleted. Use this to clean up duplicate rows. This cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-1.5">
+          <Label>Merge into</Label>
+          <Select value={targetId} onValueChange={setTargetId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select project to keep" />
+            </SelectTrigger>
+            <SelectContent>
+              {targets.map((t) => (
+                <SelectItem key={t.projectId} value={t.projectId}>
+                  {t.clientName} — {t.projectName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={() => merge.mutate()} disabled={!targetId || merge.isPending}>
+            {merge.isPending ? "Merging…" : "Merge"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

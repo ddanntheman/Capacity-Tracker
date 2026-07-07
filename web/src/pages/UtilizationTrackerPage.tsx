@@ -11,6 +11,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { availabilityStatus, rygCellClass } from "@/lib/ryg";
 import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { matchesSearch, useSearchText, useUrlFilters } from "@/lib/urlFilters";
 
 type WeekBucket = { committed: number; pipeline: number; committedProjects: string[]; pipelineProjects: string[] };
 
@@ -18,8 +20,11 @@ export default function UtilizationTrackerPage() {
   const { me, hasRole } = useAuth();
   const viewerOnly = !hasRole("editor") && !hasRole("leadership");
   const [weekStart, setWeekStart] = useState(currentWeekStart());
-  const [weeks, setWeeks] = useState(12);
-  const [practice, setPractice] = useState("all");
+  const filters = useUrlFilters({ q: "", practice: "all", weeks: "12" });
+  const search = useSearchText(filters);
+  const q = search.text;
+  const practice = filters.get("practice");
+  const weeks = Number(filters.get("weeks")) || 12;
   const visibleWeeks = useMemo(() => weekRange(weekStart, weeks), [weekStart, weeks]);
 
   const peopleQuery = useQuery({ queryKey: ["people", false], queryFn: () => api.listPeople(false) });
@@ -44,8 +49,9 @@ export default function UtilizationTrackerPage() {
   const people = useMemo(() => {
     let all = peopleQuery.data ?? [];
     if (viewerOnly) all = all.filter((p) => p.personId === me?.oid);
-    return practice === "all" ? all : all.filter((p) => p.practice === practice);
-  }, [peopleQuery.data, practice, viewerOnly, me?.oid]);
+    if (practice !== "all") all = all.filter((p) => p.practice === practice);
+    return all.filter((p) => matchesSearch(q, p.displayName, p.rank, p.practice));
+  }, [peopleQuery.data, practice, viewerOnly, me?.oid, q]);
 
   // index[personId][weekStart] -> { committed, pipeline }
   const index = useMemo(() => {
@@ -83,7 +89,8 @@ export default function UtilizationTrackerPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={practice} onValueChange={setPractice}>
+          <Input placeholder="Search person…" value={search.text} onChange={(e) => search.onChange(e.target.value)} className="w-44" />
+          <Select value={practice} onValueChange={(v) => filters.set("practice", v)}>
             <SelectTrigger className="w-40">
               <SelectValue />
             </SelectTrigger>
@@ -108,7 +115,7 @@ export default function UtilizationTrackerPage() {
           <Button variant="outline" size="icon" aria-label="Next weeks" onClick={() => setWeekStart(shiftWeeks(weekStart, weeks))}>
             <ChevronRight className="size-4" />
           </Button>
-          <Select value={String(weeks)} onValueChange={(v) => setWeeks(Number(v))}>
+          <Select value={String(weeks)} onValueChange={(v) => filters.set("weeks", v)}>
             <SelectTrigger className="w-32">
               <SelectValue />
             </SelectTrigger>

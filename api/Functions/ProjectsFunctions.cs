@@ -146,6 +146,64 @@ public class ProjectsFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
         return new OkObjectResult(ProjectDto.From(project, result.User!.HasRole(AppRoles.Leadership)));
     }
 
+    [Function("MergeProject")]
+    public async Task<IActionResult> Merge(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "projects/{id:guid}/merge")] HttpRequest req, Guid id)
+    {
+        var result = auth.Authorize(req, AppRoles.Leadership);
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
+
+        var body = await req.ReadFromJsonAsync<MergeProjectRequest>();
+        if (body is null || body.TargetProjectId == Guid.Empty || body.TargetProjectId == id)
+        {
+            return new BadRequestObjectResult(new { error = "A different target project is required." });
+        }
+
+        Project? target = null;
+        IActionResult? failure = null;
+        var strategy = db.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            db.ChangeTracker.Clear();
+            await using var tx = await db.Database.BeginTransactionAsync();
+
+            var source = await db.Projects.FirstOrDefaultAsync(p => p.ProjectId == id);
+            target = await db.Projects.FirstOrDefaultAsync(p => p.ProjectId == body.TargetProjectId);
+            if (source is null || target is null)
+            {
+                failure = new NotFoundResult();
+                return;
+            }
+
+            // Move allocations to the target; sum hours where the same person-week already exists there.
+            await db.Database.ExecuteSqlInterpolatedAsync($@"
+UPDATE t SET t.[Hours] = t.[Hours] + s.[Hours]
+FROM [Allocations] t
+JOIN [Allocations] s ON s.[PersonId] = t.[PersonId] AND s.[WeekStart] = t.[WeekStart]
+WHERE t.[ProjectId] = {target.ProjectId} AND s.[ProjectId] = {source.ProjectId}");
+            await db.Database.ExecuteSqlInterpolatedAsync($@"
+DELETE s FROM [Allocations] s
+WHERE s.[ProjectId] = {source.ProjectId}
+  AND EXISTS (SELECT 1 FROM [Allocations] t WHERE t.[ProjectId] = {target.ProjectId} AND t.[PersonId] = s.[PersonId] AND t.[WeekStart] = s.[WeekStart])");
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE [Allocations] SET [ProjectId] = {target.ProjectId} WHERE [ProjectId] = {source.ProjectId}");
+
+            db.Projects.Remove(source);
+            audit.Record(nameof(Project), id.ToString(), "merged", $"{source.ClientName} — {source.ProjectName}", $"{target.ClientName} — {target.ProjectName}", result.User!.Oid);
+            await db.SaveChangesAsync();
+            await tx.CommitAsync();
+        });
+
+        if (failure is not null)
+        {
+            return failure;
+        }
+        return new OkObjectResult(ProjectDto.From(target!, result.User!.HasRole(AppRoles.Leadership)));
+    }
+
     private Task EnsureClient(string name) => ClientsFunctions.InsertClientIfMissing(db, name);
 
     private static int? ClampProbability(int? value) => value is null ? null : Math.Clamp(value.Value, 0, 100);

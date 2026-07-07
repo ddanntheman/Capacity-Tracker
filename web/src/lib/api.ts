@@ -64,11 +64,18 @@ export const api = {
   updateProject: (id: string, body: Omit<Project, "projectId">) =>
     request<Project>(`/projects/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   archiveProject: (id: string) => request<Project>(`/projects/${id}/archive`, { method: "POST" }),
+  mergeProject: (id: string, targetProjectId: string) =>
+    request<Project>(`/projects/${id}/merge`, { method: "POST", body: JSON.stringify({ targetProjectId }) }),
 
   listClients: () => request<Client[]>("/clients"),
   getClient: (id: string) => request<ClientDetail>(`/clients/${id}`),
   updateClient: (id: string, body: Omit<Client, "clientId">) =>
     request<Client>(`/clients/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  createClient: (body: Omit<Client, "clientId">) =>
+    request<Client>("/clients", { method: "POST", body: JSON.stringify(body) }),
+  deleteClient: (id: string) => request<void>(`/clients/${id}`, { method: "DELETE" }),
+  mergeClient: (id: string, targetClientId: string) =>
+    request<Client>(`/clients/${id}/merge`, { method: "POST", body: JSON.stringify({ targetClientId }) }),
 
   listPractices: () => request<Practice[]>("/practices"),
   createPractice: (body: { name: string; leadId: string | null; defaultUtilizationTarget: number | null }) =>

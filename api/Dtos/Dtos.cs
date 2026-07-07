@@ -138,6 +138,8 @@ public record ClientDto(Guid ClientId, string Name, string? Industry, string? Re
 
 public record UpsertClientRequest(string Name, string? Industry, string? RelationshipPartner, string? Notes);
 
+public record MergeClientRequest(Guid TargetClientId);
+
 // Practices
 public record PracticeDto(Guid PracticeId, string Name, Guid? LeadId, int? DefaultUtilizationTarget, bool IsArchived, int Headcount)
 {
@@ -149,6 +151,8 @@ public record UpsertPracticeRequest(string Name, Guid? LeadId, int? DefaultUtili
 public record MergePracticeRequest(Guid TargetPracticeId);
 
 public record MergePersonRequest(Guid TargetPersonId);
+
+public record MergeProjectRequest(Guid TargetProjectId);
 
 // Actuals
 public record ActualHoursDto(Guid ActualHoursId, Guid PersonId, DateOnly Month, decimal ChargeableHours)

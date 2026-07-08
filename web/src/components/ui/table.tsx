@@ -1,8 +1,12 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-export const Table = ({ className, ...props }: React.HTMLAttributes<HTMLTableElement>) => (
-  <div className="relative w-full overflow-auto">
+export const Table = ({
+  className,
+  containerClassName,
+  ...props
+}: React.HTMLAttributes<HTMLTableElement> & { containerClassName?: string }) => (
+  <div className={cn("relative w-full overflow-auto", containerClassName)}>
     <table className={cn("w-full caption-bottom text-sm border-collapse", className)} {...props} />
   </div>
 );

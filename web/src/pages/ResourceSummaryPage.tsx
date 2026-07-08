@@ -124,7 +124,7 @@ export default function ResourceSummaryPage() {
   }, [rows, q, practiceFilter, statusFilter, sort]);
 
   const totals = useMemo(() => {
-    const t = { committed: 0, pipeline: 0, weightedPipeline: 0, chargeable: 0, baseHours: 0, billableTarget: 0 };
+    const t = { committed: 0, pipeline: 0, weightedPipeline: 0, chargeable: 0, baseHours: 0, billableTarget: 0, remaining: 0 };
     for (const r of visibleRows) {
       t.committed += r.committed;
       t.pipeline += r.pipeline;
@@ -132,6 +132,7 @@ export default function ResourceSummaryPage() {
       t.chargeable += r.totalChargeable;
       t.baseHours += r.baseHours;
       t.billableTarget += r.billableTarget ?? 0;
+      if (r.remaining != null) t.remaining += Math.max(0, r.remaining);
     }
     return t;
   }, [visibleRows]);
@@ -276,7 +277,7 @@ export default function ResourceSummaryPage() {
                   </TableRow>
                 ))}
                 {visibleRows.length > 0 && (
-                  <TableRow className="bg-[var(--color-muted)] font-medium">
+                  <TableRow className="sticky bottom-0 z-10 bg-[var(--color-muted)] font-medium">
                     <TableCell>Team total</TableCell>
                     <TableCell>{visibleRows.length} people</TableCell>
                     <TableCell className="text-right">—</TableCell>
@@ -290,7 +291,7 @@ export default function ResourceSummaryPage() {
                       {totals.baseHours > 0 ? `${((totals.chargeable / totals.baseHours) * 100).toFixed(1)}%` : "—"}
                     </TableCell>
                     <TableCell className="text-right">—</TableCell>
-                    <TableCell className="text-right">{Math.max(0, Math.round(totals.billableTarget - totals.chargeable))}</TableCell>
+                    <TableCell className="text-right">{Math.round(totals.remaining)}</TableCell>
                     <TableCell>—</TableCell>
                   </TableRow>
                 )}

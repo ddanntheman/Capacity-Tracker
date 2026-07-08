@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { Download } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ArrowDown, ArrowUp, Download } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
@@ -18,15 +18,19 @@ import { downloadCsv } from "@/lib/csv";
 
 const WEEKS_PER_YEAR = 52;
 
+type SortKey = "name" | "target" | "committed" | "pipeline" | "chargeable" | "util" | "vsTarget" | "remaining";
+
 export default function ResourceSummaryPage() {
   const year = new Date().getFullYear();
   const firstMonday = mondayOf(new Date(year, 0, 7));
 
-  const filters = useUrlFilters({ q: "", practice: "all", status: "all" });
+  const filters = useUrlFilters({ q: "", practice: "all", status: "all", weighted: "0" });
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "name", dir: 1 });
   const search = useSearchText(filters);
   const q = search.text;
   const practiceFilter = filters.get("practice");
   const statusFilter = filters.get("status");
+  const weighted = filters.get("weighted") === "1";
 
   const peopleQuery = useQuery({ queryKey: ["people", false], queryFn: () => api.listPeople(false) });
   const projectsQuery = useQuery({ queryKey: ["projects", "all"], queryFn: () => api.listProjects(false) });
@@ -67,7 +71,7 @@ export default function ResourceSummaryPage() {
       const baseHours = (person.weeklyCapacityHours || 40) * WEEKS_PER_YEAR;
       const target = person.utilizationTarget;
       const billableTarget = target != null ? Math.round((baseHours * target) / 100) : null;
-      const totalChargeable = t.committed + t.pipeline;
+      const totalChargeable = t.committed + (weighted ? t.weightedPipeline : t.pipeline);
       const forecastUtil = baseHours > 0 ? (totalChargeable / baseHours) * 100 : 0;
       const vsTarget = target != null ? forecastUtil - target : null;
       const remaining = billableTarget != null ? billableTarget - totalChargeable : null;
@@ -75,7 +79,7 @@ export default function ResourceSummaryPage() {
       const actualToDate = actualsByPerson.get(person.personId) ?? 0;
       return { person, ...t, baseHours, target, billableTarget, totalChargeable, forecastUtil, vsTarget, remaining, status, actualToDate };
     });
-  }, [peopleQuery.data, allocationsQuery.data, actualsQuery.data, projects]);
+  }, [peopleQuery.data, allocationsQuery.data, actualsQuery.data, projects, weighted]);
 
   const practices = useMemo(() => {
     const set = new Set<string>();
@@ -83,17 +87,57 @@ export default function ResourceSummaryPage() {
     return [...set].sort();
   }, [peopleQuery.data]);
 
-  const visibleRows = useMemo(
-    () =>
-      rows.filter(
-        (r) =>
-          matchesSearch(q, r.person.displayName, r.person.rank, r.person.practice) &&
-          (practiceFilter === "all" || r.person.practice === practiceFilter) &&
-          (statusFilter === "all" ||
-            (statusFilter === "on-track" ? r.status === "ok" : statusFilter === "at-risk" ? r.status === "warn" : r.status === "over")),
-      ),
-    [rows, q, practiceFilter, statusFilter],
-  );
+  const visibleRows = useMemo(() => {
+    const filtered = rows.filter(
+      (r) =>
+        matchesSearch(q, r.person.displayName, r.person.rank, r.person.practice) &&
+        (practiceFilter === "all" || r.person.practice === practiceFilter) &&
+        (statusFilter === "all" ||
+          (statusFilter === "on-track" ? r.status === "ok" : statusFilter === "at-risk" ? r.status === "warn" : r.status === "over")),
+    );
+    const value = (r: (typeof rows)[number]): string | number => {
+      switch (sort.key) {
+        case "name":
+          return r.person.displayName.toLowerCase();
+        case "target":
+          return r.target ?? -1;
+        case "committed":
+          return r.committed;
+        case "pipeline":
+          return r.pipeline;
+        case "chargeable":
+          return r.totalChargeable;
+        case "util":
+          return r.forecastUtil;
+        case "vsTarget":
+          return r.vsTarget ?? Number.NEGATIVE_INFINITY;
+        case "remaining":
+          return r.remaining ?? Number.NEGATIVE_INFINITY;
+      }
+    };
+    return [...filtered].sort((a, b) => {
+      const va = value(a);
+      const vb = value(b);
+      const cmp = typeof va === "string" && typeof vb === "string" ? va.localeCompare(vb) : Number(va) - Number(vb);
+      return cmp * sort.dir;
+    });
+  }, [rows, q, practiceFilter, statusFilter, sort]);
+
+  const totals = useMemo(() => {
+    const t = { committed: 0, pipeline: 0, weightedPipeline: 0, chargeable: 0, baseHours: 0, billableTarget: 0 };
+    for (const r of visibleRows) {
+      t.committed += r.committed;
+      t.pipeline += r.pipeline;
+      t.weightedPipeline += r.weightedPipeline;
+      t.chargeable += r.totalChargeable;
+      t.baseHours += r.baseHours;
+      t.billableTarget += r.billableTarget ?? 0;
+    }
+    return t;
+  }, [visibleRows]);
+
+  const toggleSort = (key: SortKey) =>
+    setSort((s) => (s.key === key ? { key, dir: s.dir === 1 ? -1 : 1 } : { key, dir: key === "name" ? 1 : -1 }));
 
   const exportCsv = () => {
     downloadCsv(
@@ -109,10 +153,10 @@ export default function ResourceSummaryPage() {
         r.pipeline,
         Math.round(r.weightedPipeline),
         r.actualToDate,
-        r.totalChargeable,
+        Math.round(r.totalChargeable),
         r.forecastUtil.toFixed(1),
         r.vsTarget != null ? r.vsTarget.toFixed(1) : "",
-        r.remaining != null ? Math.max(0, r.remaining) : "",
+        r.remaining != null ? Math.max(0, Math.round(r.remaining)) : "",
         r.status == null ? "No target" : r.status === "ok" ? "On track" : r.status === "warn" ? "At risk" : "Off track",
       ]),
     );
@@ -156,6 +200,15 @@ export default function ResourceSummaryPage() {
         <Button variant="outline" size="sm" onClick={exportCsv} disabled={peopleQuery.isLoading || allocationsQuery.isLoading}>
           <Download className="mr-1 size-4" /> Export CSV
         </Button>
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={weighted}
+            onChange={(e) => filters.set("weighted", e.target.checked ? "1" : "0")}
+            className="size-4 accent-[var(--color-primary)]"
+          />
+          Weight pipeline by win %
+        </label>
       </div>
 
       <Card>
@@ -163,25 +216,26 @@ export default function ResourceSummaryPage() {
           <CardTitle className="text-base">Annual rollup</CardTitle>
           <CardDescription>
             Base hours = weekly capacity × {WEEKS_PER_YEAR} weeks. Billable target = base × utilization target.
+            {weighted ? " Forecast counts pipeline at each engagement's win probability." : " Forecast counts pipeline at 100%."}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-auto">
+          <div className="max-h-[70vh] overflow-auto">
             <Table>
-              <TableHeader>
+              <TableHeader className="sticky top-0 z-10 bg-[var(--color-card)]">
                 <TableRow>
-                  <TableHead>Name</TableHead>
+                  <SortHead label="Name" k="name" sort={sort} onSort={toggleSort} />
                   <TableHead>Level</TableHead>
-                  <TableHead className="text-right">Util target</TableHead>
+                  <SortHead label="Util target" k="target" sort={sort} onSort={toggleSort} right />
                   <TableHead className="text-right">Billable target (hrs)</TableHead>
-                  <TableHead className="text-right">Committed (hrs)</TableHead>
-                  <TableHead className="text-right">Pipeline (hrs)</TableHead>
+                  <SortHead label="Committed (hrs)" k="committed" sort={sort} onSort={toggleSort} right />
+                  <SortHead label="Pipeline (hrs)" k="pipeline" sort={sort} onSort={toggleSort} right />
                   <TableHead className="text-right">Weighted pipeline (hrs)</TableHead>
                   <TableHead className="text-right">Actual to date (hrs)</TableHead>
-                  <TableHead className="text-right">Total chargeable (hrs)</TableHead>
-                  <TableHead className="text-right">Forecast util</TableHead>
-                  <TableHead className="text-right">vs. target</TableHead>
-                  <TableHead className="text-right">Remaining (hrs)</TableHead>
+                  <SortHead label="Total chargeable (hrs)" k="chargeable" sort={sort} onSort={toggleSort} right />
+                  <SortHead label="Forecast util" k="util" sort={sort} onSort={toggleSort} right />
+                  <SortHead label="vs. target" k="vsTarget" sort={sort} onSort={toggleSort} right />
+                  <SortHead label="Remaining (hrs)" k="remaining" sort={sort} onSort={toggleSort} right />
                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
@@ -200,14 +254,14 @@ export default function ResourceSummaryPage() {
                     <TableCell className="text-right">{r.pipeline}</TableCell>
                     <TableCell className="text-right">{Math.round(r.weightedPipeline)}</TableCell>
                     <TableCell className="text-right">{r.actualToDate > 0 ? r.actualToDate : "—"}</TableCell>
-                    <TableCell className="text-right">{r.totalChargeable}</TableCell>
+                    <TableCell className="text-right">{Math.round(r.totalChargeable)}</TableCell>
                     <TableCell className={cn("text-right font-medium", r.status && rygTextClass[r.status])}>
                       {r.forecastUtil.toFixed(1)}%
                     </TableCell>
                     <TableCell className="text-right">
                       {r.vsTarget != null ? `${r.vsTarget >= 0 ? "+" : ""}${r.vsTarget.toFixed(1)} pts` : "—"}
                     </TableCell>
-                    <TableCell className="text-right">{r.remaining != null ? Math.max(0, r.remaining) : "—"}</TableCell>
+                    <TableCell className="text-right">{r.remaining != null ? Math.max(0, Math.round(r.remaining)) : "—"}</TableCell>
                     <TableCell>
                       {r.status == null ? (
                         <Badge variant="secondary">No target</Badge>
@@ -221,6 +275,25 @@ export default function ResourceSummaryPage() {
                     </TableCell>
                   </TableRow>
                 ))}
+                {visibleRows.length > 0 && (
+                  <TableRow className="bg-[var(--color-muted)] font-medium">
+                    <TableCell>Team total</TableCell>
+                    <TableCell>{visibleRows.length} people</TableCell>
+                    <TableCell className="text-right">—</TableCell>
+                    <TableCell className="text-right">{totals.billableTarget}</TableCell>
+                    <TableCell className="text-right">{totals.committed}</TableCell>
+                    <TableCell className="text-right">{totals.pipeline}</TableCell>
+                    <TableCell className="text-right">{Math.round(totals.weightedPipeline)}</TableCell>
+                    <TableCell className="text-right">—</TableCell>
+                    <TableCell className="text-right">{Math.round(totals.chargeable)}</TableCell>
+                    <TableCell className="text-right">
+                      {totals.baseHours > 0 ? `${((totals.chargeable / totals.baseHours) * 100).toFixed(1)}%` : "—"}
+                    </TableCell>
+                    <TableCell className="text-right">—</TableCell>
+                    <TableCell className="text-right">{Math.max(0, Math.round(totals.billableTarget - totals.chargeable))}</TableCell>
+                    <TableCell>—</TableCell>
+                  </TableRow>
+                )}
                 {visibleRows.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={13} className="text-center text-[var(--color-muted-foreground)]">
@@ -234,5 +307,33 @@ export default function ResourceSummaryPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function SortHead({
+  label,
+  k,
+  sort,
+  onSort,
+  right,
+}: {
+  label: string;
+  k: SortKey;
+  sort: { key: SortKey; dir: 1 | -1 };
+  onSort: (key: SortKey) => void;
+  right?: boolean;
+}) {
+  const active = sort.key === k;
+  return (
+    <TableHead className={cn(right && "text-right")}>
+      <button
+        type="button"
+        onClick={() => onSort(k)}
+        className={cn("inline-flex items-center gap-1 hover:underline", active && "font-semibold")}
+      >
+        {label}
+        {active && (sort.dir === 1 ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />)}
+      </button>
+    </TableHead>
   );
 }

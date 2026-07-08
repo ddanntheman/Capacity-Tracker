@@ -221,8 +221,7 @@ export default function ResourceSummaryPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="max-h-[70vh] overflow-auto">
-            <Table>
+          <Table containerClassName="max-h-[70vh]">
               <TableHeader className="sticky top-0 z-10 bg-[var(--color-card)]">
                 <TableRow>
                   <SortHead label="Name" k="name" sort={sort} onSort={toggleSort} />
@@ -303,8 +302,7 @@ export default function ResourceSummaryPage() {
                   </TableRow>
                 )}
               </TableBody>
-            </Table>
-          </div>
+          </Table>
         </CardContent>
       </Card>
     </div>

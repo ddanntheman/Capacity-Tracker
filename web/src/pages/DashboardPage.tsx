@@ -40,6 +40,29 @@ export default function DashboardPage() {
   const clientIdByName = useMemo(() => new Map((clients.data ?? []).map((c) => [c.name, c.clientId])), [clients.data]);
   const projectById = useMemo(() => new Map((projects.data ?? []).map((p) => [p.projectId, p])), [projects.data]);
 
+  // Per-week committed vs pipeline split so the forward chart shows how much of
+  // each week's utilization is signed work vs. unconverted pipeline.
+  const weekSplit = useMemo(() => {
+    const capacityPerWeek = (people.data ?? []).reduce((s, p) => s + (p.weeklyCapacityHours || 40), 0);
+    const byWeek = new Map<string, { committed: number; pipeline: number }>();
+    for (const a of allocations.data ?? []) {
+      const project = projectById.get(a.projectId);
+      if (!project || project.status === "closed") continue;
+      if (!byWeek.has(a.weekStart)) byWeek.set(a.weekStart, { committed: 0, pipeline: 0 });
+      const t = byWeek.get(a.weekStart)!;
+      if (project.status === "pipeline") t.pipeline += a.hours;
+      else t.committed += a.hours;
+    }
+    const m = new Map<string, { committedPct: number; pipelinePct: number }>();
+    for (const [week, t] of byWeek) {
+      m.set(week, {
+        committedPct: capacityPerWeek > 0 ? (t.committed / capacityPerWeek) * 100 : 0,
+        pipelinePct: capacityPerWeek > 0 ? (t.pipeline / capacityPerWeek) * 100 : 0,
+      });
+    }
+    return m;
+  }, [allocations.data, people.data, projectById]);
+
   const maxWeek = useMemo(() => Math.max(100, ...(util.data?.byWeek.map((w) => w.utilizationRate) ?? [0])), [util.data]);
 
   // Per-person totals for the current week, used by stat-card drill-downs.
@@ -105,7 +128,10 @@ export default function DashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle>Forward utilization — next {weeks} weeks</CardTitle>
-          <CardDescription>Team-wide utilization rate by week. Green ≥80%, yellow below, red over 100%. Click a bar for the weekly breakdown.</CardDescription>
+          <CardDescription>
+            Team-wide utilization rate by week, split into committed (solid) vs pipeline (hatched) hours. Click a bar
+            for the weekly breakdown.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-end gap-4 h-48">
@@ -117,17 +143,43 @@ export default function DashboardPage() {
                 className="flex h-full flex-1 cursor-pointer flex-col items-center justify-end gap-2"
               >
                 <span className="text-xs font-medium">{w.utilizationRate}%</span>
-                <div className="flex w-full flex-1 items-end">
-                  <div
-                    className={cn("w-full rounded-t", rygBarClass[weekBarStatus(w.utilizationRate)])}
-                    style={{ height: `${(w.utilizationRate / maxWeek) * 100}%`, minHeight: 2 }}
-                    role="img"
-                    aria-label={`Week of ${w.weekStart}: ${w.utilizationRate}% utilization`}
-                  />
+                <div className="flex w-full flex-1 flex-col items-stretch justify-end">
+                  {(() => {
+                    const split = weekSplit.get(w.weekStart) ?? { committedPct: w.utilizationRate, pipelinePct: 0 };
+                    const barClass = rygBarClass[weekBarStatus(w.utilizationRate)];
+                    return (
+                      <div
+                        className="flex w-full flex-col justify-end"
+                        style={{ height: "100%" }}
+                        role="img"
+                        aria-label={`Week of ${w.weekStart}: ${w.utilizationRate}% utilization (${split.committedPct.toFixed(0)}% committed, ${split.pipelinePct.toFixed(0)}% pipeline)`}
+                      >
+                        {split.pipelinePct > 0 && (
+                          <div
+                            className={cn("w-full rounded-t opacity-40 [background-image:repeating-linear-gradient(45deg,transparent,transparent_3px,rgba(255,255,255,0.6)_3px,rgba(255,255,255,0.6)_6px)]", barClass)}
+                            style={{ height: `${(split.pipelinePct / maxWeek) * 100}%`, minHeight: 2 }}
+                          />
+                        )}
+                        <div
+                          className={cn("w-full", split.pipelinePct <= 0 && "rounded-t", barClass)}
+                          style={{ height: `${(split.committedPct / maxWeek) * 100}%`, minHeight: 2 }}
+                        />
+                      </div>
+                    );
+                  })()}
                 </div>
                 <span className="text-xs text-[var(--color-muted-foreground)]">{weekLabel(w.weekStart)}</span>
               </button>
             ))}
+          </div>
+          <div className="mt-3 flex items-center gap-4 text-xs text-[var(--color-muted-foreground)]">
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block size-3 rounded-sm bg-[var(--color-ok)]" /> Committed
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block size-3 rounded-sm bg-[var(--color-ok)] opacity-40 [background-image:repeating-linear-gradient(45deg,transparent,transparent_3px,rgba(255,255,255,0.6)_3px,rgba(255,255,255,0.6)_6px)]" />{" "}
+              Pipeline
+            </span>
           </div>
         </CardContent>
       </Card>

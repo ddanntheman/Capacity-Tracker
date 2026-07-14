@@ -242,13 +242,16 @@ public class AllocationsFunctions(CapacityDbContext db, RequestAuthorizer auth, 
             var weekTotals = await db.Allocations
                 .Where(a => a.PersonId == body.PersonId && a.WeekStart >= firstWeek && a.WeekStart < lastWeekExclusive)
                 .GroupBy(a => a.WeekStart)
-                .Select(g => g.Sum(a => a.Hours))
+                .Select(g => new { WeekStart = g.Key, Total = g.Sum(a => a.Hours) })
                 .ToListAsync();
-            var overWeeks = weekTotals.Count(t => t > person.WeeklyCapacityHours);
-            if (overWeeks > 0)
+            var over = weekTotals
+                .Select(t => new { t.Total, Capacity = HolidayHelper.CapacityForWeek(t.WeekStart, person.WeeklyCapacityHours) })
+                .Where(t => t.Total > t.Capacity)
+                .ToList();
+            if (over.Count > 0)
             {
-                var peak = weekTotals.Max();
-                warning = $"{person.DisplayName} is booked over capacity in {overWeeks} of {body.Weeks} week(s) (peak {peak}h vs {person.WeeklyCapacityHours}h/week).";
+                var peak = over.MaxBy(t => t.Total - t.Capacity)!;
+                warning = $"{person.DisplayName} is booked over capacity in {over.Count} of {body.Weeks} week(s) (peak {peak.Total}h vs {peak.Capacity}h/week).";
             }
         }
 

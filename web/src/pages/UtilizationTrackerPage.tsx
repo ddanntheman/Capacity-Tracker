@@ -21,6 +21,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { StaffRangeDialog } from "@/components/StaffRangeDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { availabilityStatus, rygCellClass } from "@/lib/ryg";
+import { capacityForWeek } from "@/lib/holidays";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -101,9 +102,9 @@ export default function UtilizationTrackerPage() {
     const totals = new Map<string, { committed: number; pipeline: number; available: number }>();
     for (const w of visibleWeeks) totals.set(w, { committed: 0, pipeline: 0, available: 0 });
     for (const person of people) {
-      const capacity = person.weeklyCapacityHours || 40;
       const byWeek = index.get(person.personId);
       for (const w of visibleWeeks) {
+        const capacity = capacityForWeek(w, person.weeklyCapacityHours || 40);
         const bucket = byWeek?.get(w);
         const committed = bucket?.committed ?? 0;
         const pipeline = bucket?.pipeline ?? 0;
@@ -120,11 +121,10 @@ export default function UtilizationTrackerPage() {
     const header = ["Person", "Rank", "Practice", "Row", ...visibleWeeks.map(weekLabel)];
     const rows: (string | number)[][] = [];
     for (const person of people) {
-      const capacity = person.weeklyCapacityHours || 40;
       const byWeek = index.get(person.personId);
       const committed = visibleWeeks.map((w) => byWeek?.get(w)?.committed ?? 0);
       const pipeline = visibleWeeks.map((w) => byWeek?.get(w)?.pipeline ?? 0);
-      const available = visibleWeeks.map((_, i) => capacity - committed[i] - pipeline[i]);
+      const available = visibleWeeks.map((w, i) => capacityForWeek(w, person.weeklyCapacityHours || 40) - committed[i] - pipeline[i]);
       rows.push([person.displayName, person.rank ?? "", person.practice ?? "", "Committed", ...committed]);
       rows.push([person.displayName, person.rank ?? "", person.practice ?? "", "Pipeline", ...pipeline]);
       rows.push([person.displayName, person.rank ?? "", person.practice ?? "", "Available", ...available]);
@@ -513,7 +513,6 @@ function HeatmapRow({
   byWeek: Map<string, WeekBucket> | undefined;
   onOpen: () => void;
 }) {
-  const capacity = person.weeklyCapacityHours || 40;
   return (
     <tr className="border-t">
       <td className="sticky left-0 z-10 bg-[var(--color-card)] p-2 font-medium">
@@ -525,6 +524,7 @@ function HeatmapRow({
         </div>
       </td>
       {weeks.map((w) => {
+        const capacity = capacityForWeek(w, person.weeklyCapacityHours || 40);
         const bucket = byWeek?.get(w);
         const committed = bucket?.committed ?? 0;
         const pipeline = bucket?.pipeline ?? 0;
@@ -564,7 +564,6 @@ function PersonRows({
   byWeek: Map<string, WeekBucket> | undefined;
   onOpen: () => void;
 }) {
-  const capacity = person.weeklyCapacityHours || 40;
   const rows: { key: "committed" | "pipeline" | "available"; label: string; variant: "ok" | "warn" | "secondary" }[] = [
     { key: "committed", label: "C", variant: "ok" },
     { key: "pipeline", label: "P", variant: "warn" },
@@ -589,6 +588,7 @@ function PersonRows({
             <Badge variant={row.variant}>{row.label}</Badge>
           </td>
           {weeks.map((w) => {
+            const capacity = capacityForWeek(w, person.weeklyCapacityHours || 40);
             const bucket = byWeek?.get(w);
             const committed = bucket?.committed ?? 0;
             const pipeline = bucket?.pipeline ?? 0;

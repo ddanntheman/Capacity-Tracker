@@ -19,6 +19,9 @@ public record PersonDto(
     int? UtilizationTarget,
     int WeeklyCapacityHours,
     string? Skills,
+    string? Certifications,
+    string? IndustryExperience,
+    string? StaffingPreferences,
     string? Notes,
     bool IsActive,
     bool IsPlaceholder)
@@ -40,6 +43,9 @@ public record PersonDto(
         p.UtilizationTarget,
         p.WeeklyCapacityHours,
         p.Skills,
+        p.Certifications,
+        p.IndustryExperience,
+        p.StaffingPreferences,
         p.Notes,
         p.IsActive,
         p.IsPlaceholder);
@@ -60,6 +66,9 @@ public record CreatePersonRequest(
     int? UtilizationTarget,
     int? WeeklyCapacityHours,
     string? Skills,
+    string? Certifications,
+    string? IndustryExperience,
+    string? StaffingPreferences,
     string? Notes,
     bool? IsPlaceholder = null);
 
@@ -78,6 +87,9 @@ public record UpdatePersonRequest(
     int? UtilizationTarget,
     int? WeeklyCapacityHours,
     string? Skills,
+    string? Certifications,
+    string? IndustryExperience,
+    string? StaffingPreferences,
     string? Notes,
     bool IsActive);
 

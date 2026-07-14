@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { api } from "@/lib/api";
 import { currentWeekStart, weekRange } from "@/lib/weeks";
+import { capacityForWeek } from "@/lib/holidays";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,12 +45,12 @@ export default function PracticeDetailPage() {
           if (projectStatus.get(a.projectId) === "pipeline") pipeline += a.hours;
           else committed += a.hours;
         }
-        const capacity = (person.weeklyCapacityHours || 40) * weeks.length;
+        const capacity = weeks.reduce((s, w) => s + capacityForWeek(w, person.weeklyCapacityHours || 40), 0);
         const available = Math.max(0, capacity - committed - pipeline);
         return { person, committed, pipeline, available, capacity, projectCount: projectsForPerson.size };
       })
       .sort((a, b) => b.committed + b.pipeline - (a.committed + a.pipeline));
-  }, [practice, people, allocations, projectStatus, weeks.length]);
+  }, [practice, people, allocations, projectStatus, weeks]);
 
   const rollup = useMemo(() => {
     let committed = 0;

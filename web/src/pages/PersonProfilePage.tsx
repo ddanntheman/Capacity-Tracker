@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/auth";
 import { currentWeekStart, shiftWeeks, weekLabel } from "@/lib/weeks";
+import { capacityForWeek, holidaysInWeek } from "@/lib/holidays";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -60,10 +61,14 @@ export default function PersonProfilePage() {
     );
   }
 
-  const skills = (person.skills ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const parseTags = (value: string | null) =>
+    (value ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  const skills = parseTags(person.skills);
+  const certifications = parseTags(person.certifications);
+  const industryExperience = parseTags(person.industryExperience);
 
   const today = currentWeekStart();
   const byWeek = new Map<string, number>();
@@ -72,9 +77,10 @@ export default function PersonProfilePage() {
   }
   const capacity = person.weeklyCapacityHours || 40;
   const pastWeeks = [...byWeek.entries()].filter(([w]) => w <= today);
+  const pastCapacity = pastWeeks.reduce((sum, [w]) => sum + capacityForWeek(w, capacity), 0);
   const actualUtilization =
-    pastWeeks.length > 0
-      ? Math.round((pastWeeks.reduce((sum, [, hrs]) => sum + hrs, 0) / (pastWeeks.length * capacity)) * 100)
+    pastWeeks.length > 0 && pastCapacity > 0
+      ? Math.round((pastWeeks.reduce((sum, [, hrs]) => sum + hrs, 0) / pastCapacity) * 100)
       : null;
   const currentWeekTotal = byWeek.get(today) ?? 0;
 
@@ -104,7 +110,10 @@ export default function PersonProfilePage() {
   const horizonWeeks = hasForecastWork
     ? Math.round((new Date(horizonEnd).getTime() - new Date(today).getTime()) / (7 * 24 * 3600 * 1000)) + 1
     : 0;
-  const forecastCapacity = horizonWeeks * capacity;
+  let forecastCapacity = 0;
+  for (let i = 0; i < horizonWeeks; i++) {
+    forecastCapacity += capacityForWeek(shiftWeeks(today, i), capacity);
+  }
   const forecastHours = committedHours + pipelineHours;
   const forecastUtil = forecastCapacity > 0 ? Math.round((forecastHours / forecastCapacity) * 100) : null;
   const targetBillableHours =
@@ -150,6 +159,33 @@ export default function PersonProfilePage() {
                   </Badge>
                 ))}
               </div>
+            )}
+            {certifications.length > 0 && (
+              <div className="space-y-1 pt-1">
+                <span className="text-[var(--color-muted-foreground)]">Certifications</span>
+                <div className="flex flex-wrap gap-1">
+                  {certifications.map((c) => (
+                    <Badge key={c} variant="secondary">
+                      {c}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            {industryExperience.length > 0 && (
+              <div className="space-y-1 pt-1">
+                <span className="text-[var(--color-muted-foreground)]">Industry experience</span>
+                <div className="flex flex-wrap gap-1">
+                  {industryExperience.map((i) => (
+                    <Badge key={i} variant="secondary">
+                      {i}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            {person.staffingPreferences && (
+              <ProfileRow label="Staffing preferences" value={person.staffingPreferences} />
             )}
             {person.notes && <p className="pt-1 text-[var(--color-muted-foreground)]">{person.notes}</p>}
           </CardContent>
@@ -234,28 +270,36 @@ export default function PersonProfilePage() {
             <TableBody>
               {[...byWeek.entries()]
                 .sort(([a], [b]) => a.localeCompare(b))
-                .map(([week, hrs]) => (
-                  <TableRow key={week}>
-                    <TableCell>
-                      {weekLabel(week)}
-                      {week === today && (
-                        <Badge variant="secondary" className="ml-2">
-                          Current
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>{hrs}h</TableCell>
-                    <TableCell>
-                      {hrs > capacity ? (
-                        <Badge variant="over">Over-booked</Badge>
-                      ) : hrs === capacity ? (
-                        <Badge variant="ok">Full</Badge>
-                      ) : (
-                        <Badge variant="secondary">{capacity - hrs}h free</Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                .map(([week, hrs]) => {
+                  const weekCapacity = capacityForWeek(week, capacity);
+                  return (
+                    <TableRow key={week}>
+                      <TableCell>
+                        {weekLabel(week)}
+                        {week === today && (
+                          <Badge variant="secondary" className="ml-2">
+                            Current
+                          </Badge>
+                        )}
+                        {holidaysInWeek(week) > 0 && (
+                          <Badge variant="secondary" className="ml-2">
+                            Holiday ({weekCapacity}h cap)
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>{hrs}h</TableCell>
+                      <TableCell>
+                        {hrs > weekCapacity ? (
+                          <Badge variant="over">Over-booked</Badge>
+                        ) : hrs === weekCapacity ? (
+                          <Badge variant="ok">Full</Badge>
+                        ) : (
+                          <Badge variant="secondary">{weekCapacity - hrs}h free</Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               {byWeek.size === 0 && (
                 <TableRow>
                   <TableCell colSpan={3} className="text-center text-[var(--color-muted-foreground)]">

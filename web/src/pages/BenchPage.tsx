@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { currentWeekStart, weekRange, weekLabel } from "@/lib/weeks";
 import type { Project } from "@/lib/types";
 import { availabilityStatus, rygCellClass } from "@/lib/ryg";
+import { capacityForWeek } from "@/lib/holidays";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -95,13 +96,14 @@ export default function BenchPage() {
 
     return people
       .map((person) => {
-        const capacity = person.weeklyCapacityHours || 40;
-        const freeByWeek = visibleWeeks.map((w) => capacity - (booked.get(person.personId)?.get(w) ?? 0));
+        const baseCapacity = person.weeklyCapacityHours || 40;
+        const capacityByWeek = visibleWeeks.map((w) => capacityForWeek(w, baseCapacity));
+        const freeByWeek = visibleWeeks.map((w, i) => capacityByWeek[i] - (booked.get(person.personId)?.get(w) ?? 0));
         const totalFree = freeByWeek.reduce((s, f) => s + Math.max(0, f), 0);
-        const fullyAvailable = freeByWeek.every((f) => f >= capacity);
+        const fullyAvailable = freeByWeek.every((f, i) => f >= capacityByWeek[i]);
         const overcommitted = freeByWeek.some((f) => f < 0);
-        const bookedNow = freeByWeek[0] < capacity;
-        const rollOffIndex = bookedNow ? freeByWeek.findIndex((f) => f >= capacity) : -1;
+        const bookedNow = freeByWeek[0] < capacityByWeek[0];
+        const rollOffIndex = bookedNow ? freeByWeek.findIndex((f, i) => f >= capacityByWeek[i]) : -1;
         const rollOffWeek = rollOffIndex > 0 ? visibleWeeks[rollOffIndex] : null;
         const availableSoon = bookedNow && rollOffIndex > 0 && rollOffIndex <= 4;
         const personAssignments = [...(assignments.get(person.personId)?.values() ?? [])].sort((a, b) =>

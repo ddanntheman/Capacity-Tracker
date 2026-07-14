@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { currentWeekStart, weekRange } from "@/lib/weeks";
+import { capacityForWeek } from "@/lib/holidays";
 import type { Person, Project } from "@/lib/types";
 import { parseSkills } from "@/components/SkillsInput";
 import { Badge } from "@/components/ui/badge";
@@ -84,13 +85,15 @@ export default function RecommendationsPage() {
 
     return people
       .map((person) => {
-        const capacity = person.weeklyCapacityHours || 40;
         const byWeek = booked.get(person.personId);
         // Free hours across the horizon, and how many of the requested hours actually fit.
         let freeHours = 0;
         let fitHours = 0;
         let bookedHours = 0;
+        let horizonCapacity = 0;
         for (const w of horizon) {
+          const capacity = capacityForWeek(w, person.weeklyCapacityHours || 40);
+          horizonCapacity += capacity;
           const used = byWeek?.get(w) ?? 0;
           bookedHours += used;
           const free = Math.max(0, capacity - used);
@@ -101,7 +104,6 @@ export default function RecommendationsPage() {
 
         // Utilization gap: people below their target get boosted so staffing helps
         // them reach it. Uses current booking over the horizon vs. target.
-        const horizonCapacity = capacity * weeks;
         const currentUtil = horizonCapacity > 0 ? (bookedHours / horizonCapacity) * 100 : 0;
         const target = person.utilizationTarget ?? 0;
         const utilizationGap = Math.max(0, target - currentUtil);

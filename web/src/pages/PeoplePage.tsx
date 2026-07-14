@@ -63,6 +63,9 @@ function personBody(p: Person, patch: Partial<Person>): Omit<Person, "personId" 
     utilizationTarget: merged.utilizationTarget,
     weeklyCapacityHours: merged.weeklyCapacityHours,
     skills: merged.skills,
+    certifications: merged.certifications,
+    industryExperience: merged.industryExperience,
+    staffingPreferences: merged.staffingPreferences,
     notes: merged.notes,
     isActive: merged.isActive,
   };
@@ -517,6 +520,17 @@ function MergePersonDialog({
   );
 }
 
+function tagSuggestions(people: Person[], select: (p: Person) => string | null): string[] {
+  const set = new Map<string, string>();
+  for (const p of people) {
+    for (const s of parseSkills(select(p))) {
+      const key = s.toLowerCase();
+      if (!set.has(key)) set.set(key, s);
+    }
+  }
+  return [...set.values()].sort((a, b) => a.localeCompare(b));
+}
+
 export function PersonDialog({ person }: { people?: Person[]; person?: Person }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -532,6 +546,8 @@ export function PersonDialog({ person }: { people?: Person[]; person?: Person })
     }
     return [...set.values()].sort((a, b) => a.localeCompare(b));
   }, [skillPeople]);
+  const certificationSuggestions = useMemo(() => tagSuggestions(skillPeople, (sp) => sp.certifications), [skillPeople]);
+  const industrySuggestions = useMemo(() => tagSuggestions(skillPeople, (sp) => sp.industryExperience), [skillPeople]);
   const [displayName, setDisplayName] = useState(person?.displayName ?? "");
   const [email, setEmail] = useState(person?.email ?? "");
   const [jobTitle, setJobTitle] = useState(person?.jobTitle ?? "");
@@ -545,6 +561,9 @@ export function PersonDialog({ person }: { people?: Person[]; person?: Person })
   );
   const [weeklyCapacityHours, setWeeklyCapacityHours] = useState(String(person?.weeklyCapacityHours ?? 40));
   const [skills, setSkills] = useState<string[]>(parseSkills(person?.skills));
+  const [certifications, setCertifications] = useState<string[]>(parseSkills(person?.certifications));
+  const [industryExperience, setIndustryExperience] = useState<string[]>(parseSkills(person?.industryExperience));
+  const [staffingPreferences, setStaffingPreferences] = useState(person?.staffingPreferences ?? "");
   const [notes, setNotes] = useState(person?.notes ?? "");
   const [isActive, setIsActive] = useState(person?.isActive ?? true);
 
@@ -565,6 +584,9 @@ export function PersonDialog({ person }: { people?: Person[]; person?: Person })
         utilizationTarget: utilizationTarget === "" ? null : Number(utilizationTarget),
         weeklyCapacityHours: weeklyCapacityHours === "" ? 40 : Number(weeklyCapacityHours),
         skills: skills.length > 0 ? serializeSkills(skills) : null,
+        certifications: certifications.length > 0 ? serializeSkills(certifications) : null,
+        industryExperience: industryExperience.length > 0 ? serializeSkills(industryExperience) : null,
+        staffingPreferences: staffingPreferences || null,
         notes: notes || null,
         isActive,
       };
@@ -699,6 +721,23 @@ export function PersonDialog({ person }: { people?: Person[]; person?: Person })
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="skills">Skills</Label>
             <SkillsInput value={skills} onChange={setSkills} suggestions={skillSuggestions} />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label htmlFor="certifications">Certifications</Label>
+            <SkillsInput value={certifications} onChange={setCertifications} suggestions={certificationSuggestions} />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label htmlFor="industryExperience">Industry experience</Label>
+            <SkillsInput value={industryExperience} onChange={setIndustryExperience} suggestions={industrySuggestions} />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label htmlFor="staffingPreferences">Staffing preferences</Label>
+            <Input
+              id="staffingPreferences"
+              placeholder="e.g. no travel, prefers healthcare projects"
+              value={staffingPreferences}
+              onChange={(e) => setStaffingPreferences(e.target.value)}
+            />
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="notes">Notes</Label>

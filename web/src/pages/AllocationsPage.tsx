@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/auth";
 import { useAllocationRealtime } from "@/hooks/useRealtime";
 import { currentWeekStart, shiftWeeks, weekLabel, weekRange } from "@/lib/weeks";
+import { capacityForWeek } from "@/lib/holidays";
 import type { Allocation, Person, Project } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -144,7 +145,7 @@ export default function AllocationsPage() {
                     {visibleWeeks.map((w) => {
                       const cell = index.get(person.personId)?.get(w) ?? [];
                       const total = cell.reduce((s, a) => s + a.hours, 0);
-                      const capacity = person.weeklyCapacityHours || 40;
+                      const capacity = capacityForWeek(w, person.weeklyCapacityHours || 40);
                       return (
                         <td key={w} className="p-1 align-top">
                           <button
@@ -227,7 +228,7 @@ function EditAllocationsDialog({
   const [values, setValues] = useState<Record<string, number>>(initial);
   const [repeatWeeks, setRepeatWeeks] = useState(0);
   const total = Object.values(values).reduce((s, v) => s + (v || 0), 0);
-  const capacity = person.weeklyCapacityHours || 40;
+  const capacity = capacityForWeek(week, person.weeklyCapacityHours || 40);
 
   const save = useMutation({
     mutationFn: async () => {

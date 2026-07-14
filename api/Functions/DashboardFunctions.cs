@@ -34,13 +34,13 @@ public class DashboardFunctions(CapacityDbContext db, RequestAuthorizer auth)
             .ToDictionaryAsync(x => x.PersonId, x => x.Hours);
 
         var peopleIds = people.Select(p => p.PersonId).ToHashSet();
-        var availableHours = people.Sum(p => p.WeeklyCapacityHours);
+        var availableHours = people.Sum(p => HolidayHelper.CapacityForWeek(weekStart, p.WeeklyCapacityHours));
         var allocatedHours = perPerson.Where(kv => peopleIds.Contains(kv.Key)).Sum(kv => kv.Value);
         var utilizationRate = availableHours == 0 ? 0 : Math.Round((double)allocatedHours / availableHours * 100, 1);
         var totals = people.Select(p => new
         {
             booked = perPerson.TryGetValue(p.PersonId, out var h) ? h : 0,
-            capacity = p.WeeklyCapacityHours,
+            capacity = HolidayHelper.CapacityForWeek(weekStart, p.WeeklyCapacityHours),
         }).ToList();
 
         return new OkObjectResult(new
@@ -72,7 +72,6 @@ public class DashboardFunctions(CapacityDbContext db, RequestAuthorizer auth)
         var end = weekStart.AddDays(7 * weeks);
 
         var activePeople = await db.People.Where(p => p.IsActive && !p.IsPlaceholder).ToListAsync();
-        var weeklyCapacity = (double)activePeople.Sum(p => p.WeeklyCapacityHours);
         var activeIds = activePeople.Select(p => p.PersonId).ToHashSet();
 
         var rows = (await db.Allocations
@@ -85,11 +84,12 @@ public class DashboardFunctions(CapacityDbContext db, RequestAuthorizer auth)
         {
             var ws = weekStart.AddDays(7 * i);
             var total = rows.Where(a => a.WeekStart == ws).Sum(a => a.Hours);
+            var capacity = (double)activePeople.Sum(p => HolidayHelper.CapacityForWeek(ws, p.WeeklyCapacityHours));
             return new
             {
                 weekStart = ws.ToString("yyyy-MM-dd"),
                 allocatedHours = total,
-                utilizationRate = weeklyCapacity == 0 ? 0 : Math.Round((double)total / weeklyCapacity * 100, 1),
+                utilizationRate = capacity == 0 ? 0 : Math.Round((double)total / capacity * 100, 1),
             };
         }).ToList();
 

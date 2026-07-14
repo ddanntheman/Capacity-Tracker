@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { currentWeekStart, weekLabel } from "@/lib/weeks";
 import { availabilityStatus, rygBarClass, type Ryg } from "@/lib/ryg";
+import { capacityForWeek } from "@/lib/holidays";
 import type { Person, Project } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,7 +52,6 @@ export default function DashboardPage() {
   // Per-week committed vs pipeline split so the forward chart shows how much of
   // each week's utilization is signed work vs. unconverted pipeline.
   const weekSplit = useMemo(() => {
-    const capacityPerWeek = (people.data ?? []).reduce((s, p) => s + (p.weeklyCapacityHours || 40), 0);
     const peopleIds = new Set((people.data ?? []).map((p) => p.personId));
     const byWeek = new Map<string, { committed: number; pipeline: number }>();
     for (const a of allocations.data ?? []) {
@@ -65,6 +65,7 @@ export default function DashboardPage() {
     }
     const m = new Map<string, { committedPct: number; pipelinePct: number }>();
     for (const [week, t] of byWeek) {
+      const capacityPerWeek = (people.data ?? []).reduce((s, p) => s + capacityForWeek(week, p.weeklyCapacityHours || 40), 0);
       m.set(week, {
         committedPct: capacityPerWeek > 0 ? (t.committed / capacityPerWeek) * 100 : 0,
         pipelinePct: capacityPerWeek > 0 ? (t.pipeline / capacityPerWeek) * 100 : 0,
@@ -83,7 +84,7 @@ export default function DashboardPage() {
       totals.set(a.personId, (totals.get(a.personId) ?? 0) + a.hours);
     }
     return (people.data ?? [])
-      .map((p) => ({ person: p, booked: totals.get(p.personId) ?? 0, capacity: p.weeklyCapacityHours || 40 }))
+      .map((p) => ({ person: p, booked: totals.get(p.personId) ?? 0, capacity: capacityForWeek(weekStart, p.weeklyCapacityHours || 40) }))
       .sort((a, b) => b.booked - a.booked);
   }, [allocations.data, people.data, weekStart]);
 

@@ -41,6 +41,15 @@ public class Person
     /// <summary>Comma-separated skill tags.</summary>
     public string? Skills { get; set; }
 
+    /// <summary>Comma-separated certifications (e.g. "CISSP, PMP").</summary>
+    public string? Certifications { get; set; }
+
+    /// <summary>Comma-separated industry experience tags (e.g. "Healthcare, Banking").</summary>
+    public string? IndustryExperience { get; set; }
+
+    /// <summary>Free-text staffing preferences (travel, project types, availability).</summary>
+    public string? StaffingPreferences { get; set; }
+
     public string? Notes { get; set; }
 
     public bool IsActive { get; set; } = true;

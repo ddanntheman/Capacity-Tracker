@@ -25,6 +25,9 @@ export interface Person {
   utilizationTarget: number | null;
   weeklyCapacityHours: number;
   skills: string | null;
+  certifications: string | null;
+  industryExperience: string | null;
+  staffingPreferences: string | null;
   notes: string | null;
   isActive: boolean;
   isPlaceholder: boolean;

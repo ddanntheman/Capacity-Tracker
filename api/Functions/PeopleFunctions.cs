@@ -95,6 +95,9 @@ public class PeopleFunctions(CapacityDbContext db, RequestAuthorizer auth, Audit
             UtilizationTarget = body.UtilizationTarget,
             WeeklyCapacityHours = body.WeeklyCapacityHours ?? 40,
             Skills = body.Skills?.Trim(),
+            Certifications = body.Certifications?.Trim(),
+            IndustryExperience = body.IndustryExperience?.Trim(),
+            StaffingPreferences = body.StaffingPreferences?.Trim(),
             Notes = body.Notes?.Trim(),
             IsActive = true,
             IsPlaceholder = isPlaceholder,
@@ -152,6 +155,9 @@ public class PeopleFunctions(CapacityDbContext db, RequestAuthorizer auth, Audit
         person.UtilizationTarget = body.UtilizationTarget;
         person.WeeklyCapacityHours = body.WeeklyCapacityHours ?? person.WeeklyCapacityHours;
         person.Skills = body.Skills?.Trim();
+        person.Certifications = body.Certifications?.Trim();
+        person.IndustryExperience = body.IndustryExperience?.Trim();
+        person.StaffingPreferences = body.StaffingPreferences?.Trim();
         person.Notes = body.Notes?.Trim();
         person.IsActive = body.IsActive;
 
@@ -327,6 +333,9 @@ WHERE s.[PersonId] = {sourceId} AND EXISTS (
         target.BillRate ??= source.BillRate;
         target.UtilizationTarget ??= source.UtilizationTarget;
         target.Skills ??= source.Skills;
+        target.Certifications ??= source.Certifications;
+        target.IndustryExperience ??= source.IndustryExperience;
+        target.StaffingPreferences ??= source.StaffingPreferences;
         target.Notes ??= source.Notes;
     }
 
@@ -350,6 +359,9 @@ WHERE s.[PersonId] = {sourceId} AND EXISTS (
         [nameof(Person.UtilizationTarget)] = p.UtilizationTarget?.ToString(),
         [nameof(Person.WeeklyCapacityHours)] = p.WeeklyCapacityHours.ToString(),
         [nameof(Person.Skills)] = p.Skills,
+        [nameof(Person.Certifications)] = p.Certifications,
+        [nameof(Person.IndustryExperience)] = p.IndustryExperience,
+        [nameof(Person.StaffingPreferences)] = p.StaffingPreferences,
         [nameof(Person.Notes)] = p.Notes,
         [nameof(Person.IsActive)] = p.IsActive.ToString(),
         [nameof(Person.IsPlaceholder)] = p.IsPlaceholder.ToString(),

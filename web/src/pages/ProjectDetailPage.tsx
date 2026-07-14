@@ -317,7 +317,7 @@ function weeksBetween(firstIso: string, lastIso: string): number {
   return Math.round(ms / (7 * 24 * 3600 * 1000));
 }
 
-const RANKS = ["Analyst", "Associate", "Senior Associate", "Manager", "Senior Manager", "Director", "Managing Director", "Partner"];
+const RANKS = ["Analyst", "Associate", "Senior Associate", "Consultant", "Senior Consultant", "Manager", "Senior Manager", "Director", "Managing Director", "Partner"];
 
 /**
  * Books an unnamed placeholder role on the project: creates a placeholder

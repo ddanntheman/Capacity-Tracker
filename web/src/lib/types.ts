@@ -27,6 +27,7 @@ export interface Person {
   skills: string | null;
   notes: string | null;
   isActive: boolean;
+  isPlaceholder: boolean;
 }
 
 export type ProjectStatus = "active" | "pipeline" | "closed";
@@ -81,6 +82,11 @@ export interface Allocation {
   projectId: string;
   weekStart: string;
   hours: number;
+}
+
+export interface RangeAllocationWriteResult {
+  allocations: Allocation[];
+  warning: string | null;
 }
 
 export interface AllocationWriteResult {

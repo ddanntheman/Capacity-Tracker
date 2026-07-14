@@ -18,7 +18,15 @@ function weekBarStatus(utilizationRate: number): Ryg {
   return "warn";
 }
 
-type StatDrill = "utilization" | "allocated" | "people" | "overAllocated" | "fullyAvailable" | "partiallyAvailable";
+type StatDrill =
+  | "utilization"
+  | "allocated"
+  | "people"
+  | "overAllocated"
+  | "fullyAvailable"
+  | "availableSoon"
+  | "partiallyAvailable"
+  | "overcommitted";
 
 export default function DashboardPage() {
   const weekStart = currentWeekStart();
@@ -44,8 +52,10 @@ export default function DashboardPage() {
   // each week's utilization is signed work vs. unconverted pipeline.
   const weekSplit = useMemo(() => {
     const capacityPerWeek = (people.data ?? []).reduce((s, p) => s + (p.weeklyCapacityHours || 40), 0);
+    const peopleIds = new Set((people.data ?? []).map((p) => p.personId));
     const byWeek = new Map<string, { committed: number; pipeline: number }>();
     for (const a of allocations.data ?? []) {
+      if (!peopleIds.has(a.personId)) continue;
       const project = projectById.get(a.projectId);
       if (!project || project.status === "closed") continue;
       if (!byWeek.has(a.weekStart)) byWeek.set(a.weekStart, { committed: 0, pipeline: 0 });
@@ -77,8 +87,41 @@ export default function DashboardPage() {
       .sort((a, b) => b.booked - a.booked);
   }, [allocations.data, people.data, weekStart]);
 
+  // Weekly booked totals per person across the fetched horizon, used to spot
+  // people rolling off (a fully-free week) within the next 30 days.
+  const bookedByPersonWeek = useMemo(() => {
+    const m = new Map<string, Map<string, number>>();
+    for (const a of allocations.data ?? []) {
+      if (!m.has(a.personId)) m.set(a.personId, new Map());
+      const wm = m.get(a.personId)!;
+      wm.set(a.weekStart, (wm.get(a.weekStart) ?? 0) + a.hours);
+    }
+    return m;
+  }, [allocations.data]);
+
+  const next30Weeks = useMemo(
+    () =>
+      (util.data?.byWeek ?? [])
+        .map((w) => w.weekStart)
+        .filter((w) => w > weekStart)
+        .slice(0, 4),
+    [util.data, weekStart],
+  );
+
+  const freeWeekWithin30 = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of currentWeekRows) {
+      const wm = bookedByPersonWeek.get(r.person.personId);
+      const free = next30Weeks.find((w) => (wm?.get(w) ?? 0) === 0);
+      if (free) m.set(r.person.personId, free);
+    }
+    return m;
+  }, [currentWeekRows, bookedByPersonWeek, next30Weeks]);
+
   const fullyAvailable = currentWeekRows.filter((r) => r.booked === 0);
+  const availableSoon = currentWeekRows.filter((r) => r.booked > 0 && freeWeekWithin30.has(r.person.personId));
   const partiallyAvailable = currentWeekRows.filter((r) => r.booked > 0 && r.booked < r.capacity);
+  const overcommitted = currentWeekRows.filter((r) => r.booked > r.capacity);
 
   // Pipeline engagements whose expected start date has passed without converting.
   const stalePipeline = useMemo(
@@ -108,13 +151,20 @@ export default function DashboardPage() {
         <StatCard loading={summary.isLoading} title="Over-allocated" value={`${summary.data?.overAllocated ?? 0}`} description={`${summary.data?.underutilized ?? 0} underutilized`} onClick={() => setStatDrill("overAllocated")} />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           loading={allocations.isLoading || people.isLoading}
-          title="Fully available"
+          title="Available now"
           value={`${fullyAvailable.length}`}
           description="On the bench this week — no booked hours"
           onClick={() => setStatDrill("fullyAvailable")}
+        />
+        <StatCard
+          loading={allocations.isLoading || people.isLoading || util.isLoading}
+          title="Available in 30 days"
+          value={`${availableSoon.length}`}
+          description="Booked now but rolling off within 4 weeks"
+          onClick={() => setStatDrill("availableSoon")}
         />
         <StatCard
           loading={allocations.isLoading || people.isLoading}
@@ -122,6 +172,13 @@ export default function DashboardPage() {
           value={`${partiallyAvailable.length}`}
           description="Booked under capacity — free hours this week"
           onClick={() => setStatDrill("partiallyAvailable")}
+        />
+        <StatCard
+          loading={allocations.isLoading || people.isLoading}
+          title="Overcommitted"
+          value={`${overcommitted.length}`}
+          description="Booked over capacity this week"
+          onClick={() => setStatDrill("overcommitted")}
         />
       </div>
 
@@ -329,6 +386,7 @@ export default function DashboardPage() {
           kind={statDrill}
           weekStart={weekStart}
           rows={currentWeekRows}
+          freeWeekWithin30={freeWeekWithin30}
           onClose={() => setStatDrill(null)}
         />
       )}
@@ -368,19 +426,23 @@ const statDrillTitles: Record<StatDrill, { title: string; description: string }>
   allocated: { title: "Allocated hours derivation", description: "Sum of every person's booked hours for the current week." },
   people: { title: "People breakdown", description: "Active people and how fully each is booked this week." },
   overAllocated: { title: "Over/under allocation", description: "People booked over capacity (red) or with free hours (yellow/green)." },
-  fullyAvailable: { title: "Fully available people", description: "People with zero booked hours this week — ready to staff." },
+  fullyAvailable: { title: "Available now", description: "People with zero booked hours this week — ready to staff." },
+  availableSoon: { title: "Available in next 30 days", description: "People booked now with a fully-free week coming up within 4 weeks." },
   partiallyAvailable: { title: "Partially available people", description: "People booked below capacity this week — free hours to staff." },
+  overcommitted: { title: "Overcommitted people", description: "People booked over their weekly capacity — rebalance their staffing." },
 };
 
 function StatDrillDialog({
   kind,
   weekStart,
   rows,
+  freeWeekWithin30,
   onClose,
 }: {
   kind: StatDrill;
   weekStart: string;
   rows: { person: Person; booked: number; capacity: number }[];
+  freeWeekWithin30: Map<string, string>;
   onClose: () => void;
 }) {
   const { title, description } = statDrillTitles[kind];
@@ -389,9 +451,13 @@ function StatDrillDialog({
       ? rows.filter((r) => r.booked !== r.capacity)
       : kind === "fullyAvailable"
         ? rows.filter((r) => r.booked === 0)
-        : kind === "partiallyAvailable"
-          ? rows.filter((r) => r.booked > 0 && r.booked < r.capacity)
-          : rows;
+        : kind === "availableSoon"
+          ? rows.filter((r) => r.booked > 0 && freeWeekWithin30.has(r.person.personId))
+          : kind === "partiallyAvailable"
+            ? rows.filter((r) => r.booked > 0 && r.booked < r.capacity)
+            : kind === "overcommitted"
+              ? rows.filter((r) => r.booked > r.capacity)
+              : rows;
   const totalBooked = rows.reduce((s, r) => s + r.booked, 0);
   const totalCapacity = rows.reduce((s, r) => s + r.capacity, 0);
 
@@ -411,6 +477,7 @@ function StatDrillDialog({
               <TableHead className="text-right">Booked</TableHead>
               <TableHead className="text-right">Capacity</TableHead>
               <TableHead className="text-right">Free</TableHead>
+              {kind === "availableSoon" && <TableHead>Free from</TableHead>}
               <TableHead>Status</TableHead>
             </TableRow>
           </TableHeader>
@@ -428,6 +495,9 @@ function StatDrillDialog({
                   <TableCell className="text-right">{r.booked}h</TableCell>
                   <TableCell className="text-right">{r.capacity}h</TableCell>
                   <TableCell className="text-right">{free}h</TableCell>
+                  {kind === "availableSoon" && (
+                    <TableCell>{weekLabel(freeWeekWithin30.get(r.person.personId) ?? "")}</TableCell>
+                  )}
                   <TableCell>
                     <Badge variant={status === "ok" ? "ok" : status === "warn" ? "warn" : "over"}>
                       {status === "over" ? "Overbooked" : status === "warn" ? "Near capacity" : "Available"}

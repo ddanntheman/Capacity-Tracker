@@ -20,7 +20,8 @@ public record PersonDto(
     int WeeklyCapacityHours,
     string? Skills,
     string? Notes,
-    bool IsActive)
+    bool IsActive,
+    bool IsPlaceholder)
 {
     /// <summary>Cost and bill rates are only included for leadership callers.</summary>
     public static PersonDto From(Person p, bool includeFinancials) => new(
@@ -40,7 +41,8 @@ public record PersonDto(
         p.WeeklyCapacityHours,
         p.Skills,
         p.Notes,
-        p.IsActive);
+        p.IsActive,
+        p.IsPlaceholder);
 }
 
 public record CreatePersonRequest(
@@ -58,7 +60,8 @@ public record CreatePersonRequest(
     int? UtilizationTarget,
     int? WeeklyCapacityHours,
     string? Skills,
-    string? Notes);
+    string? Notes,
+    bool? IsPlaceholder = null);
 
 public record UpdatePersonRequest(
     string DisplayName,

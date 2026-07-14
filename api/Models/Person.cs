@@ -45,5 +45,12 @@ public class Person
 
     public bool IsActive { get; set; } = true;
 
+    /// <summary>
+    /// An unnamed role to be staffed later (e.g. "TBD — Senior Consultant").
+    /// Placeholders hold project bookings but are excluded from capacity and
+    /// utilization rollups; staffing one merges it into a named person.
+    /// </summary>
+    public bool IsPlaceholder { get; set; }
+
     public ICollection<Allocation> Allocations { get; set; } = [];
 }

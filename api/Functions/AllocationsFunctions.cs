@@ -235,10 +235,27 @@ public class AllocationsFunctions(CapacityDbContext db, RequestAuthorizer auth, 
         }
 
         await db.SaveChangesAsync();
+
+        string? warning = null;
+        if (body.HoursPerWeek > 0 && !person.IsPlaceholder)
+        {
+            var weekTotals = await db.Allocations
+                .Where(a => a.PersonId == body.PersonId && a.WeekStart >= firstWeek && a.WeekStart < lastWeekExclusive)
+                .GroupBy(a => a.WeekStart)
+                .Select(g => g.Sum(a => a.Hours))
+                .ToListAsync();
+            var overWeeks = weekTotals.Count(t => t > person.WeeklyCapacityHours);
+            if (overWeeks > 0)
+            {
+                var peak = weekTotals.Max();
+                warning = $"{person.DisplayName} is booked over capacity in {overWeeks} of {body.Weeks} week(s) (peak {peak}h vs {person.WeeklyCapacityHours}h/week).";
+            }
+        }
+
         return new RangeAllocationWriteOutput
         {
             SignalRMessages = [.. messages],
-            HttpResponse = new OkObjectResult(affected.Select(AllocationDto.From)),
+            HttpResponse = new OkObjectResult(new { allocations = affected.Select(AllocationDto.From), warning }),
         };
     }
 

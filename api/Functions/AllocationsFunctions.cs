@@ -139,7 +139,7 @@ public class AllocationsFunctions(CapacityDbContext db, RequestAuthorizer auth, 
         }
 
         await db.SaveChangesAsync();
-        return Broadcast(existing is null ? "created" : "updated", allocation, newTotal, person.WeeklyCapacityHours);
+        return Broadcast(existing is null ? "created" : "updated", allocation, newTotal, HolidayHelper.CapacityForWeek(weekStart, person.WeeklyCapacityHours));
     }
 
     /// <summary>

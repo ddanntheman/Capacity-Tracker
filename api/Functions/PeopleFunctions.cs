@@ -23,10 +23,15 @@ public class PeopleFunctions(CapacityDbContext db, RequestAuthorizer auth, Audit
         }
 
         var includeInactive = req.Query["includeInactive"] == "true";
+        var includePlaceholders = req.Query["includePlaceholders"] == "true";
         var query = db.People.AsNoTracking().OrderBy(p => p.DisplayName).AsQueryable();
         if (!includeInactive)
         {
             query = query.Where(p => p.IsActive);
+        }
+        if (!includePlaceholders)
+        {
+            query = query.Where(p => !p.IsPlaceholder);
         }
 
         var includeFinancials = result.User!.HasRole(AppRoles.Leadership);
@@ -61,7 +66,8 @@ public class PeopleFunctions(CapacityDbContext db, RequestAuthorizer auth, Audit
         }
 
         var body = await req.ReadFromJsonAsync<CreatePersonRequest>();
-        if (body is null || string.IsNullOrWhiteSpace(body.DisplayName) || string.IsNullOrWhiteSpace(body.Email))
+        var isPlaceholder = body?.IsPlaceholder == true;
+        if (body is null || string.IsNullOrWhiteSpace(body.DisplayName) || (!isPlaceholder && string.IsNullOrWhiteSpace(body.Email)))
         {
             return new BadRequestObjectResult(new { error = "DisplayName and Email are required." });
         }
@@ -76,7 +82,7 @@ public class PeopleFunctions(CapacityDbContext db, RequestAuthorizer auth, Audit
         {
             PersonId = Guid.NewGuid(),
             DisplayName = body.DisplayName.Trim(),
-            Email = body.Email.Trim(),
+            Email = string.IsNullOrWhiteSpace(body.Email) ? $"placeholder-{Guid.NewGuid():N}@placeholder.invalid" : body.Email.Trim(),
             JobTitle = body.JobTitle?.Trim(),
             ManagerId = body.ManagerId,
             Rank = body.Rank?.Trim(),
@@ -91,6 +97,7 @@ public class PeopleFunctions(CapacityDbContext db, RequestAuthorizer auth, Audit
             Skills = body.Skills?.Trim(),
             Notes = body.Notes?.Trim(),
             IsActive = true,
+            IsPlaceholder = isPlaceholder,
         };
         db.People.Add(person);
         audit.Record(nameof(Person), person.PersonId.ToString(), "created", null, person.DisplayName, result.User!.Oid);
@@ -191,7 +198,7 @@ public class PeopleFunctions(CapacityDbContext db, RequestAuthorizer auth, Audit
     public async Task<IActionResult> Merge(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "people/{id:guid}/merge")] HttpRequest req, Guid id)
     {
-        var result = auth.Authorize(req, AppRoles.Leadership);
+        var result = auth.Authorize(req, AppRoles.Editor);
         if (!result.Allowed)
         {
             return result.Error!;
@@ -208,11 +215,25 @@ public class PeopleFunctions(CapacityDbContext db, RequestAuthorizer auth, Audit
             return new BadRequestObjectResult(new { error = "Cannot merge a person into themselves." });
         }
 
-        var sourceExists = await db.People.AsNoTracking().AnyAsync(p => p.PersonId == id);
-        var targetExists = await db.People.AsNoTracking().AnyAsync(p => p.PersonId == body.TargetPersonId);
-        if (!sourceExists || !targetExists)
+        var sourceIsPlaceholder = await db.People.AsNoTracking()
+            .Where(p => p.PersonId == id).Select(p => (bool?)p.IsPlaceholder).FirstOrDefaultAsync();
+        var targetIsPlaceholder = await db.People.AsNoTracking()
+            .Where(p => p.PersonId == body.TargetPersonId).Select(p => (bool?)p.IsPlaceholder).FirstOrDefaultAsync();
+        if (sourceIsPlaceholder is null || targetIsPlaceholder is null)
         {
             return new NotFoundResult();
+        }
+
+        if (targetIsPlaceholder == true)
+        {
+            return new BadRequestObjectResult(new { error = "Cannot merge into a placeholder role." });
+        }
+
+        // Editors may staff a placeholder role onto a named person; merging two
+        // real people remains a leadership-only cleanup operation.
+        if (sourceIsPlaceholder == false && !result.User!.HasRole(AppRoles.Leadership))
+        {
+            return new ObjectResult(new { error = "Leadership role required to merge named people." }) { StatusCode = StatusCodes.Status403Forbidden };
         }
 
         Person? merged = null;
@@ -331,5 +352,6 @@ WHERE s.[PersonId] = {sourceId} AND EXISTS (
         [nameof(Person.Skills)] = p.Skills,
         [nameof(Person.Notes)] = p.Notes,
         [nameof(Person.IsActive)] = p.IsActive.ToString(),
+        [nameof(Person.IsPlaceholder)] = p.IsPlaceholder.ToString(),
     };
 }

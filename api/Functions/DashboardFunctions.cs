@@ -24,7 +24,7 @@ public class DashboardFunctions(CapacityDbContext db, RequestAuthorizer auth)
         var weekStart = DateOnly.TryParse(req.Query["weekStart"], out var w) ? w : WeekHelper.CurrentWeekStart();
 
         var people = await db.People.AsNoTracking()
-            .Where(p => p.IsActive)
+            .Where(p => p.IsActive && !p.IsPlaceholder)
             .Select(p => new { p.PersonId, p.WeeklyCapacityHours })
             .ToListAsync();
         var perPerson = await db.Allocations
@@ -33,8 +33,9 @@ public class DashboardFunctions(CapacityDbContext db, RequestAuthorizer auth)
             .Select(g => new { PersonId = g.Key, Hours = g.Sum(a => a.Hours) })
             .ToDictionaryAsync(x => x.PersonId, x => x.Hours);
 
+        var peopleIds = people.Select(p => p.PersonId).ToHashSet();
         var availableHours = people.Sum(p => p.WeeklyCapacityHours);
-        var allocatedHours = perPerson.Values.Sum();
+        var allocatedHours = perPerson.Where(kv => peopleIds.Contains(kv.Key)).Sum(kv => kv.Value);
         var utilizationRate = availableHours == 0 ? 0 : Math.Round((double)allocatedHours / availableHours * 100, 1);
         var totals = people.Select(p => new
         {
@@ -70,12 +71,15 @@ public class DashboardFunctions(CapacityDbContext db, RequestAuthorizer auth)
         var weeks = int.TryParse(req.Query["weeks"], out var n) ? Math.Clamp(n, 1, 26) : 6;
         var end = weekStart.AddDays(7 * weeks);
 
-        var activePeople = await db.People.Where(p => p.IsActive).ToListAsync();
+        var activePeople = await db.People.Where(p => p.IsActive && !p.IsPlaceholder).ToListAsync();
         var weeklyCapacity = (double)activePeople.Sum(p => p.WeeklyCapacityHours);
+        var activeIds = activePeople.Select(p => p.PersonId).ToHashSet();
 
-        var rows = await db.Allocations
+        var rows = (await db.Allocations
             .Where(a => a.WeekStart >= weekStart && a.WeekStart < end)
-            .ToListAsync();
+            .ToListAsync())
+            .Where(a => activeIds.Contains(a.PersonId))
+            .ToList();
 
         var byWeek = Enumerable.Range(0, weeks).Select(i =>
         {

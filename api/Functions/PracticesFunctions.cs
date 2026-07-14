@@ -43,7 +43,7 @@ public class PracticesFunctions(CapacityDbContext db, RequestAuthorizer auth, Au
         }
 
         var headcounts = await db.People.AsNoTracking()
-            .Where(p => p.IsActive && p.Practice != null && p.Practice != "")
+            .Where(p => p.IsActive && !p.IsPlaceholder && p.Practice != null && p.Practice != "")
             .GroupBy(p => p.Practice!)
             .Select(g => new { Practice = g.Key, Count = g.Count() })
             .ToListAsync();
@@ -155,7 +155,7 @@ public class PracticesFunctions(CapacityDbContext db, RequestAuthorizer auth, Au
             practice = tracked;
         });
 
-        var headcount = await db.People.CountAsync(p => p.IsActive && p.Practice == practice.Name);
+        var headcount = await db.People.CountAsync(p => p.IsActive && !p.IsPlaceholder && p.Practice == practice.Name);
         return new OkObjectResult(PracticeDto.From(practice, headcount));
     }
 
@@ -208,7 +208,7 @@ public class PracticesFunctions(CapacityDbContext db, RequestAuthorizer auth, Au
             await tx.CommitAsync();
         });
 
-        var headcount = await db.People.CountAsync(p => p.IsActive && p.Practice == target.Name);
+        var headcount = await db.People.CountAsync(p => p.IsActive && !p.IsPlaceholder && p.Practice == target.Name);
         return new OkObjectResult(PracticeDto.From(target, headcount));
     }
 

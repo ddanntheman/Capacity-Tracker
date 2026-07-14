@@ -46,7 +46,7 @@ export const DEFAULT_UTILIZATION_TARGETS: Record<string, number> = {
 };
 
 /** Full update body for a person with a partial patch applied (the API replaces the whole record). */
-function personBody(p: Person, patch: Partial<Person>): Omit<Person, "personId"> {
+function personBody(p: Person, patch: Partial<Person>): Omit<Person, "personId" | "isPlaceholder"> {
   const merged = { ...p, ...patch };
   return {
     displayName: merged.displayName,

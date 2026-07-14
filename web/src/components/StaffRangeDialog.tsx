@@ -53,8 +53,9 @@ export function StaffRangeDialog({ open, onOpenChange, project, person, people, 
         weeks,
         hoursPerWeek,
       }),
-    onSuccess: () => {
+    onSuccess: (result) => {
       toast.success(hoursPerWeek === 0 ? "Staffing cleared for the range" : `Staffed ${weeks} week${weeks === 1 ? "" : "s"} at ${hoursPerWeek}h/wk`);
+      if (result?.warning) toast.warning(result.warning);
       void qc.invalidateQueries({ queryKey: ["allocations"] });
       onOpenChange(false);
     },

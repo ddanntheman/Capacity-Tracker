@@ -233,20 +233,24 @@ function EditAllocationsDialog({
     mutationFn: async () => {
       const changed = projects.filter((p) => (values[p.projectId] || 0) !== (initial[p.projectId] || 0));
       const targetWeeks = [week, ...Array.from({ length: repeatWeeks }, (_, i) => shiftWeeks(week, i + 1))];
+      let warning: string | null = null;
       for (const w of targetWeeks) {
         const toWrite = w === week ? changed : projects.filter((p) => (values[p.projectId] || 0) > 0 || (initial[p.projectId] || 0) !== (values[p.projectId] || 0));
         for (const p of toWrite) {
-          await api.upsertAllocation({
+          const result = await api.upsertAllocation({
             personId: person.personId,
             projectId: p.projectId,
             weekStart: w,
             hours: values[p.projectId] || 0,
           });
+          warning = result?.warning ?? warning;
         }
       }
+      return warning;
     },
-    onSuccess: () => {
+    onSuccess: (warning) => {
       toast.success("Allocations saved");
+      if (warning) toast.warning(warning);
       onSaved();
     },
     onError: () => {

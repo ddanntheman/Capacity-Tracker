@@ -11,6 +11,7 @@ import type {
   Practice,
   Project,
   ProjectStatus,
+  RangeAllocationWriteResult,
   UtilizationResponse,
 } from "./types";
 
@@ -46,12 +47,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   me: () => request<Me>("/me"),
 
-  listPeople: (includeInactive = false) =>
-    request<Person[]>(`/people${includeInactive ? "?includeInactive=true" : ""}`),
+  listPeople: (includeInactive = false, includePlaceholders = false) => {
+    const qs = new URLSearchParams();
+    if (includeInactive) qs.set("includeInactive", "true");
+    if (includePlaceholders) qs.set("includePlaceholders", "true");
+    const s = qs.toString();
+    return request<Person[]>(`/people${s ? `?${s}` : ""}`);
+  },
   getPerson: (id: string) => request<Person>(`/people/${id}`),
-  createPerson: (body: Omit<Person, "personId" | "isActive">) =>
+  createPerson: (body: Omit<Person, "personId" | "isActive" | "isPlaceholder"> & { isPlaceholder?: boolean }) =>
     request<Person>("/people", { method: "POST", body: JSON.stringify(body) }),
-  updatePerson: (id: string, body: Omit<Person, "personId">) =>
+  updatePerson: (id: string, body: Omit<Person, "personId" | "isPlaceholder">) =>
     request<Person>(`/people/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deactivatePerson: (id: string) => request<Person>(`/people/${id}/deactivate`, { method: "POST" }),
   mergePerson: (id: string, targetPersonId: string) =>
@@ -106,7 +112,7 @@ export const api = {
     weekStart: string;
     weeks: number;
     hoursPerWeek: number;
-  }) => request<Allocation[]>("/allocations/range", { method: "POST", body: JSON.stringify(body) }),
+  }) => request<RangeAllocationWriteResult>("/allocations/range", { method: "POST", body: JSON.stringify(body) }),
 
   dashboardSummary: (weekStart?: string) =>
     request<DashboardSummary>(`/dashboard/summary${weekStart ? `?weekStart=${weekStart}` : ""}`),

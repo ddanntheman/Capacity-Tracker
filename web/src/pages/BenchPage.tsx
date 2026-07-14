@@ -65,12 +65,21 @@ export default function BenchPage() {
   const rows = useMemo(() => {
     // booked[personId][weekStart] -> hours (committed + pipeline)
     const booked = new Map<string, Map<string, number>>();
+    const assignments = new Map<string, Map<string, { project: Project; firstWeek: string; lastWeek: string }>>();
     for (const a of allocationsQuery.data ?? []) {
       const project = projects.get(a.projectId);
-      if (!project || project.status === "closed") continue;
+      if (!project || project.status === "closed" || a.hours <= 0) continue;
       if (!booked.has(a.personId)) booked.set(a.personId, new Map());
       const byWeek = booked.get(a.personId)!;
       byWeek.set(a.weekStart, (byWeek.get(a.weekStart) ?? 0) + a.hours);
+      if (!assignments.has(a.personId)) assignments.set(a.personId, new Map());
+      const byProject = assignments.get(a.personId)!;
+      const entry = byProject.get(a.projectId);
+      if (!entry) byProject.set(a.projectId, { project, firstWeek: a.weekStart, lastWeek: a.weekStart });
+      else {
+        if (a.weekStart < entry.firstWeek) entry.firstWeek = a.weekStart;
+        if (a.weekStart > entry.lastWeek) entry.lastWeek = a.weekStart;
+      }
     }
 
     let people = peopleQuery.data ?? [];
@@ -90,10 +99,40 @@ export default function BenchPage() {
         const freeByWeek = visibleWeeks.map((w) => capacity - (booked.get(person.personId)?.get(w) ?? 0));
         const totalFree = freeByWeek.reduce((s, f) => s + Math.max(0, f), 0);
         const fullyAvailable = freeByWeek.every((f) => f >= capacity);
-        return { person, freeByWeek, totalFree, fullyAvailable };
+        const overcommitted = freeByWeek.some((f) => f < 0);
+        const bookedNow = freeByWeek[0] < capacity;
+        const rollOffIndex = bookedNow ? freeByWeek.findIndex((f) => f >= capacity) : -1;
+        const rollOffWeek = rollOffIndex > 0 ? visibleWeeks[rollOffIndex] : null;
+        const availableSoon = bookedNow && rollOffIndex > 0 && rollOffIndex <= 4;
+        const personAssignments = [...(assignments.get(person.personId)?.values() ?? [])].sort((a, b) =>
+          a.firstWeek.localeCompare(b.firstWeek),
+        );
+        return {
+          person,
+          freeByWeek,
+          totalFree,
+          fullyAvailable,
+          overcommitted,
+          availableSoon,
+          rollOffWeek,
+          assignments: personAssignments,
+        };
       })
-      .filter((r) => r.totalFree >= minFree)
-      .filter((r) => availability === "all" || (availability === "full" ? r.fullyAvailable : !r.fullyAvailable && r.totalFree > 0))
+      .filter((r) => availability === "over" || r.totalFree >= minFree)
+      .filter((r) => {
+        switch (availability) {
+          case "full":
+            return r.fullyAvailable;
+          case "soon":
+            return r.availableSoon;
+          case "partial":
+            return !r.fullyAvailable && r.totalFree > 0;
+          case "over":
+            return r.overcommitted;
+          default:
+            return true;
+        }
+      })
       .sort((a, b) => b.totalFree - a.totalFree);
   }, [peopleQuery.data, allocationsQuery.data, projects, visibleWeeks, practice, minFree, skill, availability]);
 
@@ -147,8 +186,10 @@ export default function BenchPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All</SelectItem>
-                <SelectItem value="full">Fully available</SelectItem>
+                <SelectItem value="full">Available now</SelectItem>
+                <SelectItem value="soon">Available in 30 days</SelectItem>
                 <SelectItem value="partial">Partially available</SelectItem>
+                <SelectItem value="over">Overcommitted</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -197,6 +238,8 @@ export default function BenchPage() {
                   <th className="p-2 text-left font-medium">Rank</th>
                   <th className="p-2 text-left font-medium">Practice</th>
                   <th className="p-2 text-left font-medium">Availability</th>
+                  <th className="p-2 text-left font-medium">Rolls off</th>
+                  <th className="p-2 text-left font-medium">Assignments</th>
                   {visibleWeeks.map((w) => (
                     <th key={w} className="min-w-16 p-2 text-center font-medium text-[var(--color-muted-foreground)]">
                       {weekLabel(w)}
@@ -217,7 +260,27 @@ export default function BenchPage() {
                     <td className="p-2">{r.person.rank ?? "—"}</td>
                     <td className="p-2">{r.person.practice ?? "—"}</td>
                     <td className="p-2">
-                      {r.fullyAvailable ? <span className="text-[var(--color-ok)]">Fully available</span> : "Partial"}
+                      {r.overcommitted ? (
+                        <span className="text-[var(--color-over)]">Overcommitted</span>
+                      ) : r.fullyAvailable ? (
+                        <span className="text-[var(--color-ok)]">Available now</span>
+                      ) : r.availableSoon ? (
+                        <span className="text-[var(--color-warn)]">Available soon</span>
+                      ) : (
+                        "Partial"
+                      )}
+                    </td>
+                    <td className="p-2 whitespace-nowrap">{r.rollOffWeek ? weekLabel(r.rollOffWeek) : "—"}</td>
+                    <td className="max-w-52 p-2">
+                      {r.assignments.length === 0 ? (
+                        <span className="text-[var(--color-muted-foreground)]">—</span>
+                      ) : (
+                        <span className="line-clamp-2" title={r.assignments.map((a) => `${a.project.clientName} — ${a.project.projectName} (${weekLabel(a.firstWeek)}–${weekLabel(a.lastWeek)})`).join("; ")}>
+                          {r.assignments
+                            .map((a) => `${a.project.projectName} (thru ${weekLabel(a.lastWeek)})`)
+                            .join("; ")}
+                        </span>
+                      )}
                     </td>
                     {r.freeByWeek.map((free, i) => (
                       <td
@@ -237,7 +300,7 @@ export default function BenchPage() {
                 ))}
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={6 + visibleWeeks.length} className="p-6 text-center text-[var(--color-muted-foreground)]">
+                    <td colSpan={8 + visibleWeeks.length} className="p-6 text-center text-[var(--color-muted-foreground)]">
                       Nobody matches the current filters.
                     </td>
                   </tr>

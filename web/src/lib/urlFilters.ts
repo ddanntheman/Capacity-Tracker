@@ -39,7 +39,7 @@ export function useUrlFilters(defaults: Record<string, string>) {
 export function useSearchText(filters: ReturnType<typeof useUrlFilters>, key = "q") {
   const urlValue = filters.get(key);
   const [text, setText] = useState(urlValue);
-  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const setRef = useRef(filters.set);
   useEffect(() => {
     setRef.current = filters.set;

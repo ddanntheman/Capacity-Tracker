@@ -114,7 +114,7 @@ export function CommandPalette({ pages }: { pages: PageEntry[] }) {
       aria-label="Command palette"
     >
       <div
-        className="w-full max-w-lg overflow-hidden rounded-lg border bg-[var(--color-card)] shadow-xl"
+        className="mx-4 w-full max-w-2xl overflow-hidden rounded-xl border bg-[var(--color-card)] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 border-b px-3">

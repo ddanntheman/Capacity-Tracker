@@ -14,9 +14,9 @@ const money = (n: number) => `$${n.toLocaleString(undefined, { maximumFractionDi
 const hours = (n: number) => `${n.toLocaleString(undefined, { maximumFractionDigits: 1 })}h`;
 
 const statusStyles: Record<DeliveryHealthRow["status"], string> = {
-  red: "bg-red-100 text-red-800 border-red-200",
-  yellow: "bg-amber-100 text-amber-800 border-amber-200",
-  green: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  red: "bg-red-100 text-red-800 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-900",
+  yellow: "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-900",
+  green: "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-900",
 };
 
 const statusLabels: Record<DeliveryHealthRow["status"], string> = {
@@ -182,21 +182,21 @@ export default function DeliveryHealthPage() {
                     </TableCell>
                     <TableCell>{r.mdOwner ?? "—"}</TableCell>
                     <TableCell>{r.practice ?? "—"}</TableCell>
-                    <TableCell className={`text-right tabular-nums ${r.hoursOverrun ? "text-red-600" : ""}`}>
+                    <TableCell className={`text-right tabular-nums ${r.hoursOverrun ? "text-red-600 dark:text-red-400" : ""}`}>
                       {hours(r.eacHours)} / {hours(r.amendedBaselineHours)}
                       <span className="ml-1 text-xs text-[var(--color-muted-foreground)]">
                         ({r.hoursVariance >= 0 ? "+" : ""}
                         {hours(r.hoursVariance)})
                       </span>
                     </TableCell>
-                    <TableCell className={`text-right tabular-nums ${r.feeOverrun ? "text-red-600" : ""}`}>
+                    <TableCell className={`text-right tabular-nums ${r.feeOverrun ? "text-red-600 dark:text-red-400" : ""}`}>
                       {money(r.eacFees)} / {money(r.amendedTcv)}
                       <span className="ml-1 text-xs text-[var(--color-muted-foreground)]">
                         ({r.feesVariance >= 0 ? "+" : ""}
                         {money(r.feesVariance)})
                       </span>
                     </TableCell>
-                    <TableCell className={`text-right tabular-nums ${r.marginErosion ? "text-red-600" : ""}`}>
+                    <TableCell className={`text-right tabular-nums ${r.marginErosion ? "text-red-600 dark:text-red-400" : ""}`}>
                       {r.eacMarginPct != null ? `${r.eacMarginPct}%` : "—"}
                     </TableCell>
                     <TableCell className="max-w-72 text-xs text-[var(--color-muted-foreground)]">

@@ -4,6 +4,7 @@ using CapacityTracker.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CapacityTracker.Api.Migrations
 {
     [DbContext(typeof(CapacityDbContext))]
-    partial class CapacityDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260715132605_UiPolishStandardRanks")]
+    partial class UiPolishStandardRanks
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -947,66 +950,6 @@ namespace CapacityTracker.Api.Migrations
                     b.ToTable("StandardRanks");
                 });
 
-            modelBuilder.Entity("CapacityTracker.Api.Models.TaskOrderExtraction", b =>
-                {
-                    b.Property<Guid>("TaskOrderExtractionId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("AppliedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("AppliedBy")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<decimal?>("ContractRph")
-                        .HasPrecision(10, 2)
-                        .HasColumnType("decimal(10,2)");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<Guid>("EngagementDocumentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Evidence")
-                        .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
-
-                    b.Property<int?>("FeeStructure")
-                        .HasColumnType("int");
-
-                    b.Property<string>("FileName")
-                        .IsRequired()
-                        .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
-
-                    b.Property<string>("InvoiceFrequency")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<Guid>("ProjectId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal?>("Tcv")
-                        .HasPrecision(14, 2)
-                        .HasColumnType("decimal(14,2)");
-
-                    b.HasKey("TaskOrderExtractionId");
-
-                    b.HasIndex("EngagementDocumentId");
-
-                    b.HasIndex("ProjectId");
-
-                    b.ToTable("TaskOrderExtractions");
-                });
-
             modelBuilder.Entity("CapacityTracker.Api.Models.ActualHours", b =>
                 {
                     b.HasOne("CapacityTracker.Api.Models.Person", "Person")
@@ -1209,25 +1152,6 @@ namespace CapacityTracker.Api.Migrations
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("Project");
-                });
-
-            modelBuilder.Entity("CapacityTracker.Api.Models.TaskOrderExtraction", b =>
-                {
-                    b.HasOne("CapacityTracker.Api.Models.EngagementDocument", "Document")
-                        .WithMany()
-                        .HasForeignKey("EngagementDocumentId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.HasOne("CapacityTracker.Api.Models.Project", "Project")
-                        .WithMany()
-                        .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Document");
 
                     b.Navigation("Project");
                 });

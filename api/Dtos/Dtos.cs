@@ -182,6 +182,15 @@ public record UpsertPracticeRequest(string Name, Guid? LeadId, int? DefaultUtili
 
 public record MergePracticeRequest(Guid TargetPracticeId);
 
+// Standard ranks
+public record StandardRankDto(Guid StandardRankId, string Name, int SortOrder, int? DefaultUtilizationTarget, bool IsArchived, int Headcount)
+{
+    public static StandardRankDto From(StandardRank r, int headcount) =>
+        new(r.StandardRankId, r.Name, r.SortOrder, r.DefaultUtilizationTarget, r.IsArchived, headcount);
+}
+
+public record UpsertStandardRankRequest(string Name, int? SortOrder, int? DefaultUtilizationTarget, bool? IsArchived);
+
 public record MergePersonRequest(Guid TargetPersonId);
 
 public record MergeProjectRequest(Guid TargetProjectId);

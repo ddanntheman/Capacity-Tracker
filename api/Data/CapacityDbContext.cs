@@ -27,6 +27,7 @@ public class CapacityDbContext(DbContextOptions<CapacityDbContext> options) : Db
     public DbSet<EtcOverride> EtcOverrides => Set<EtcOverride>();
     public DbSet<InvoiceRecord> InvoiceRecords => Set<InvoiceRecord>();
     public DbSet<FirmTarget> FirmTargets => Set<FirmTarget>();
+    public DbSet<StandardRank> StandardRanks => Set<StandardRank>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -342,6 +343,13 @@ public class CapacityDbContext(DbContextOptions<CapacityDbContext> options) : Db
             e.Property(t => t.NetFeesTarget).HasPrecision(16, 2);
             e.Property(t => t.UpdatedBy).HasMaxLength(256);
             e.HasIndex(t => t.PeriodStart).IsUnique();
+        });
+
+        b.Entity<StandardRank>(e =>
+        {
+            e.HasKey(r => r.StandardRankId);
+            e.Property(r => r.Name).HasMaxLength(64).IsRequired();
+            e.HasIndex(r => r.Name).IsUnique();
         });
 
         b.Entity<AuditLog>(e =>

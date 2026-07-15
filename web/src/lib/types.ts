@@ -86,6 +86,15 @@ export interface Practice {
   headcount: number;
 }
 
+export interface StandardRank {
+  standardRankId: string;
+  name: string;
+  sortOrder: number;
+  defaultUtilizationTarget: number | null;
+  isArchived: boolean;
+  headcount: number;
+}
+
 export interface ActualHours {
   actualHoursId: string;
   personId: string;

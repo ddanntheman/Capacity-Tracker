@@ -1,12 +1,13 @@
 import { useEffect, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, Users, Briefcase, ScrollText, Gauge, ClipboardList, Building2, LineChart, Armchair, Network, Sparkles, Search, Calculator, BadgeDollarSign, TrendingUp, HeartPulse } from "lucide-react";
+import { LayoutDashboard, Users, Briefcase, ScrollText, Gauge, ClipboardList, Building2, LineChart, Armchair, Network, Sparkles, Search, Calculator, BadgeDollarSign, TrendingUp, HeartPulse, Sun, Moon } from "lucide-react";
 import { authLinks, useAuth } from "@/auth";
 import { CommandPalette } from "@/components/CommandPalette";
 import type { AppRole } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useTheme } from "@/lib/theme";
 
 interface NavItem {
   to: string;
@@ -35,6 +36,7 @@ const navItems: NavItem[] = [
 
 export function Layout({ children }: { children: ReactNode }) {
   const { me, hasRole } = useAuth();
+  const { theme, toggle } = useTheme();
   const items = navItems.filter((i) => hasRole(...i.roles));
   const location = useLocation();
 
@@ -74,12 +76,12 @@ export function Layout({ children }: { children: ReactNode }) {
             <button
               type="button"
               onClick={() => window.dispatchEvent(new Event("command-palette:open"))}
-              className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm text-[var(--color-muted-foreground)] hover:bg-[var(--color-accent)]"
+              className="flex w-full max-w-md items-center gap-2 rounded-md border bg-[var(--color-card)] px-3 py-1.5 text-sm text-[var(--color-muted-foreground)] transition-colors hover:bg-[var(--color-accent)] sm:w-72 lg:w-96"
               aria-label="Open search"
             >
-              <Search className="size-4" />
-              <span className="hidden sm:inline">Search…</span>
-              <kbd className="rounded border px-1.5 py-0.5 text-[10px]">Ctrl K</kbd>
+              <Search className="size-4 shrink-0" />
+              <span className="flex-1 truncate text-left">Search people, clients, projects…</span>
+              <kbd className="shrink-0 rounded border px-1.5 py-0.5 text-[10px]">Ctrl K</kbd>
             </button>
             <div className="flex items-center gap-2">
             {me?.roles.map((r) => (
@@ -90,6 +92,14 @@ export function Layout({ children }: { children: ReactNode }) {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggle}
+              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+            </Button>
             <span className="text-sm text-[var(--color-muted-foreground)]">{me?.displayName}</span>
             <Button asChild variant="outline" size="sm">
               <a href={authLinks.logout}>Sign out</a>

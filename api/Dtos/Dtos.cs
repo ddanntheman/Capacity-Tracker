@@ -106,6 +106,7 @@ public record ProjectDto(
     string? EngagementType,
     Guid? DeliveryLeadId,
     string? Notes,
+    string? JobCode,
     DateTime? BaselineLockedAtUtc)
 {
     /// <summary>Deal value is only included for leadership callers.</summary>
@@ -121,6 +122,7 @@ public record ProjectDto(
         p.EngagementType,
         p.DeliveryLeadId,
         p.Notes,
+        p.JobCode,
         p.BaselineLockedAtUtc);
 }
 
@@ -134,7 +136,8 @@ public record CreateProjectRequest(
     int? WinProbability,
     string? EngagementType,
     Guid? DeliveryLeadId,
-    string? Notes);
+    string? Notes,
+    string? JobCode = null);
 public record UpdateProjectRequest(
     string ClientName,
     string ProjectName,
@@ -145,7 +148,8 @@ public record UpdateProjectRequest(
     int? WinProbability,
     string? EngagementType,
     Guid? DeliveryLeadId,
-    string? Notes);
+    string? Notes,
+    string? JobCode = null);
 
 public record ProjectBaselineDto(
     DateTime LockedAtUtc,
@@ -518,6 +522,96 @@ public record ProjectDeliveryDto(
     bool ActualsStale,
     DateTime? LastActualEntryUtc,
     List<DateOnly> ZeroRevenueMonths);
+
+// Invoicing (INV-01..06)
+public record InvoiceWeekCellDto(DateOnly WeekStart, decimal Hours, bool FromActuals);
+
+public record InvoiceLineDto(
+    Guid PlanLineItemId,
+    string Role,
+    string? Resource,
+    string Organization,
+    List<InvoiceWeekCellDto> Weeks,
+    decimal TotalHours,
+    decimal? Rate,
+    decimal Amount);
+
+public record ReconciliationLineDto(
+    Guid PlanLineItemId,
+    string Role,
+    string? Resource,
+    decimal ExpectedHours,
+    decimal ChargedHours,
+    decimal HoursVariance,
+    decimal? StandardBillRate,
+    decimal GrossFeesAtStandard);
+
+public record InvoicePeriodDto(
+    Guid ProjectId,
+    DateOnly PeriodStart,
+    string FeeStructure,
+    bool FeeStructureConfirmed,
+    string InvoiceBasis,
+    List<InvoiceLineDto> Lines,
+    decimal TotalHours,
+    decimal InvoiceAmount,
+    List<ReconciliationLineDto> Reconciliation,
+    decimal GrossFeesAtStandard,
+    decimal RecoverableExpenses,
+    decimal NetFees,
+    decimal FeeAdjustment,
+    decimal? RecoveryPct,
+    decimal? Rph,
+    decimal? InvoicedAmount,
+    DateOnly? InvoiceDate,
+    string? InvoiceNotes,
+    decimal? InvoiceVariance,
+    List<DateOnly> AvailablePeriods);
+
+public record CaptureInvoiceRequest(decimal InvoicedAmount, DateOnly? InvoiceDate, string? Notes);
+
+// Firm/practice rollups (RU-01..06)
+public record RollupMonthDto(
+    DateOnly PeriodStart,
+    decimal OriginalPlan,
+    decimal Forecast,
+    decimal Actual,
+    decimal NetFeesForecast,
+    decimal NetFeesActual,
+    decimal? RevenueTarget,
+    decimal? NetFeesTarget);
+
+public record RollupEngagementMonthDto(DateOnly PeriodStart, decimal OriginalPlan, decimal Forecast, decimal Actual);
+
+public record RollupEngagementDto(
+    Guid ProjectId,
+    Guid PricingPlanId,
+    string Client,
+    string Engagement,
+    string JobCode,
+    bool JobCodePlaceholder,
+    string? MdOwner,
+    string? EngagementType,
+    string? Practice,
+    string PlanStatus,
+    List<RollupEngagementMonthDto> Months,
+    decimal OriginalPlanTotal,
+    decimal ForecastTotal,
+    decimal ActualTotal);
+
+public record FirmRollupDto(
+    DateOnly From,
+    DateOnly To,
+    List<RollupMonthDto> Months,
+    List<RollupEngagementDto> Engagements);
+
+public record FirmTargetDto(DateOnly PeriodStart, decimal RevenueTarget, decimal NetFeesTarget, DateTime UpdatedAtUtc, string? UpdatedBy)
+{
+    public static FirmTargetDto From(FirmTarget t) => new(t.PeriodStart, t.RevenueTarget, t.NetFeesTarget, t.UpdatedAtUtc, t.UpdatedBy);
+}
+
+public record UpsertFirmTargetsRequest(List<UpsertFirmTargetEntry> Targets);
+public record UpsertFirmTargetEntry(DateOnly PeriodStart, decimal RevenueTarget, decimal NetFeesTarget);
 
 // Identity
 public record MeDto(Guid Oid, string DisplayName, string Email, IEnumerable<string> Roles);

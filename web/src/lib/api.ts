@@ -26,6 +26,9 @@ import type {
   RecoverableExpense,
   EtcOverrideInfo,
   WipUploadResult,
+  InvoicePeriod,
+  FirmRollup,
+  FirmTarget,
   RangeAllocationWriteResult,
   UtilizationResponse,
 } from "./types";
@@ -80,9 +83,9 @@ export const api = {
 
   listProjects: (pickerOnly = false) =>
     request<Project[]>(`/projects${pickerOnly ? "?picker=true" : ""}`),
-  createProject: (body: Omit<Project, "projectId" | "baselineLockedAtUtc">) =>
+  createProject: (body: Omit<Project, "projectId" | "baselineLockedAtUtc" | "jobCode"> & { jobCode?: string | null }) =>
     request<Project>("/projects", { method: "POST", body: JSON.stringify(body) }),
-  updateProject: (id: string, body: Omit<Project, "projectId" | "baselineLockedAtUtc">) =>
+  updateProject: (id: string, body: Omit<Project, "projectId" | "baselineLockedAtUtc" | "jobCode"> & { jobCode?: string | null }) =>
     request<Project>(`/projects/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   getProjectBaseline: (id: string) =>
     request<ProjectBaseline | null>(`/projects/${id}/baseline`),
@@ -264,6 +267,22 @@ export const api = {
     request<EtcOverrideInfo>(`/projects/${projectId}/etc-override`, { method: "PUT", body: JSON.stringify(body) }),
   clearEtcOverride: (projectId: string) =>
     request<void>(`/projects/${projectId}/etc-override`, { method: "DELETE" }),
+
+  getProjectInvoicing: (projectId: string, period?: string) =>
+    request<InvoicePeriod>(`/projects/${projectId}/invoicing${period ? `?period=${period}` : ""}`),
+  captureInvoice: (projectId: string, period: string, body: { invoicedAmount: number; invoiceDate: string | null; notes: string | null }) =>
+    request<InvoicePeriod>(`/projects/${projectId}/invoicing/${period}`, { method: "PUT", body: JSON.stringify(body) }),
+
+  getFirmRollup: (from?: string, to?: string) => {
+    const qs = new URLSearchParams();
+    if (from) qs.set("from", from);
+    if (to) qs.set("to", to);
+    const suffix = qs.toString();
+    return request<FirmRollup>(`/rollups${suffix ? `?${suffix}` : ""}`);
+  },
+  listFirmTargets: () => request<FirmTarget[]>("/rollups/targets"),
+  upsertFirmTargets: (targets: { periodStart: string; revenueTarget: number; netFeesTarget: number }[]) =>
+    request<FirmTarget[]>("/rollups/targets", { method: "PUT", body: JSON.stringify({ targets }) }),
 
   auditLog: (params: { from?: string; to?: string; entityType?: string; entityId?: string; take?: number }) => {
     const qs = new URLSearchParams();

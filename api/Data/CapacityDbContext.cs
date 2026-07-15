@@ -24,6 +24,8 @@ public class CapacityDbContext(DbContextOptions<CapacityDbContext> options) : Db
     public DbSet<ChangeOrder> ChangeOrders => Set<ChangeOrder>();
     public DbSet<RecoverableExpenseEntry> RecoverableExpenseEntries => Set<RecoverableExpenseEntry>();
     public DbSet<EtcOverride> EtcOverrides => Set<EtcOverride>();
+    public DbSet<InvoiceRecord> InvoiceRecords => Set<InvoiceRecord>();
+    public DbSet<FirmTarget> FirmTargets => Set<FirmTarget>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -57,6 +59,7 @@ public class CapacityDbContext(DbContextOptions<CapacityDbContext> options) : Db
             e.Property(p => p.DealValue).HasPrecision(12, 2);
             e.Property(p => p.EngagementType).HasMaxLength(64);
             e.Property(p => p.Notes).HasMaxLength(4000);
+            e.Property(p => p.JobCode).HasMaxLength(64);
             e.HasOne(p => p.DeliveryLead)
                 .WithMany()
                 .HasForeignKey(p => p.DeliveryLeadId)
@@ -293,6 +296,29 @@ public class CapacityDbContext(DbContextOptions<CapacityDbContext> options) : Db
                 .HasForeignKey(o => o.ProjectId)
                 .OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(o => o.ProjectId);
+        });
+
+        b.Entity<InvoiceRecord>(e =>
+        {
+            e.HasKey(i => i.InvoiceRecordId);
+            e.Property(i => i.InvoicedAmount).HasPrecision(14, 2);
+            e.Property(i => i.Notes).HasMaxLength(4000);
+            e.Property(i => i.UpdatedBy).HasMaxLength(256);
+            e.HasOne(i => i.Project)
+                .WithMany()
+                .HasForeignKey(i => i.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+            // One captured invoice per engagement billing period.
+            e.HasIndex(i => new { i.ProjectId, i.PeriodStart }).IsUnique();
+        });
+
+        b.Entity<FirmTarget>(e =>
+        {
+            e.HasKey(t => t.FirmTargetId);
+            e.Property(t => t.RevenueTarget).HasPrecision(16, 2);
+            e.Property(t => t.NetFeesTarget).HasPrecision(16, 2);
+            e.Property(t => t.UpdatedBy).HasMaxLength(256);
+            e.HasIndex(t => t.PeriodStart).IsUnique();
         });
 
         b.Entity<AuditLog>(e =>

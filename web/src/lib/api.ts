@@ -13,6 +13,7 @@ import type {
   PricingPlanSummary,
   Practice,
   Project,
+  StandardRank,
   ProjectRevenueMonth,
   RateCardEntry,
   RevenuePhase,
@@ -116,6 +117,15 @@ export const api = {
   ) => request<Practice>(`/practices/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   mergePractice: (id: string, targetPracticeId: string) =>
     request<Practice>(`/practices/${id}/merge`, { method: "POST", body: JSON.stringify({ targetPracticeId }) }),
+
+  listRanks: () => request<StandardRank[]>("/ranks"),
+  createRank: (body: { name: string; sortOrder?: number | null; defaultUtilizationTarget: number | null }) =>
+    request<StandardRank>("/ranks", { method: "POST", body: JSON.stringify(body) }),
+  updateRank: (
+    id: string,
+    body: { name: string; sortOrder?: number | null; defaultUtilizationTarget: number | null; isArchived?: boolean },
+  ) => request<StandardRank>(`/ranks/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteRank: (id: string) => request<void>(`/ranks/${id}`, { method: "DELETE" }),
 
   listActuals: (year: number) => request<ActualHours[]>(`/actuals?year=${year}`),
   upsertActual: (body: { personId: string; month: string; chargeableHours: number }) =>

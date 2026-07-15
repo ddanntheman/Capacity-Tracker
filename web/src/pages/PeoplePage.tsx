@@ -17,33 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { InlineInput, InlineSelect } from "@/components/InlineEdit";
 import { SkillsInput, parseSkills, serializeSkills } from "@/components/SkillsInput";
 import { matchesSearch, useSearchText, useUrlFilters } from "@/lib/urlFilters";
-
-export const RANKS = [
-  "Analyst",
-  "Associate",
-  "Senior Associate",
-  "Consultant",
-  "Senior Consultant",
-  "Manager",
-  "Senior Manager",
-  "Director",
-  "Managing Director",
-  "Partner",
-];
-
-/** Default billable utilization targets (%) by rank. */
-export const DEFAULT_UTILIZATION_TARGETS: Record<string, number> = {
-  Analyst: 85,
-  Associate: 85,
-  "Senior Associate": 85,
-  Consultant: 85,
-  "Senior Consultant": 80,
-  Manager: 80,
-  "Senior Manager": 65,
-  Director: 40,
-  "Managing Director": 20,
-  Partner: 20,
-};
+import { useRanks } from "@/lib/ranks";
 
 /** Full update body for a person with a partial patch applied (the API replaces the whole record). */
 function personBody(p: Person, patch: Partial<Person>): Omit<Person, "personId" | "isPlaceholder"> {
@@ -93,6 +67,7 @@ export default function PeoplePage() {
     queryFn: () => api.listPeople(includeInactive),
   });
   const { data: practices = [] } = useQuery({ queryKey: ["practices"], queryFn: () => api.listPractices() });
+  const { rankNames } = useRanks();
 
   const allSkills = useMemo(() => {
     const set = new Map<string, string>();
@@ -169,7 +144,7 @@ export default function PeoplePage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All ranks</SelectItem>
-            {RANKS.map((r) => (
+            {rankNames.map((r) => (
               <SelectItem key={r} value={r}>
                 {r}
               </SelectItem>
@@ -247,7 +222,7 @@ export default function PeoplePage() {
                         disabled={!canEdit}
                         allowNone
                         noneLabel="No rank"
-                        options={RANKS.map((r) => ({ value: r, label: r }))}
+                        options={rankNames.map((r) => ({ value: r, label: r }))}
                         onSave={(v) => inlineUpdate.mutate({ person: p, patch: { rank: v || null } })}
                       />
                     </TableCell>
@@ -534,6 +509,7 @@ function tagSuggestions(people: Person[], select: (p: Person) => string | null):
 export function PersonDialog({ person }: { people?: Person[]; person?: Person }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const { rankNames, defaultTargetFor } = useRanks();
   const { data: practiceList = [] } = useQuery({ queryKey: ["practices"], queryFn: () => api.listPractices(), enabled: open });
   const { data: skillPeople = [] } = useQuery({ queryKey: ["people", false], queryFn: () => api.listPeople(false), enabled: open });
   const skillSuggestions = useMemo(() => {
@@ -634,8 +610,9 @@ export function PersonDialog({ person }: { people?: Person[]; person?: Person })
               onValueChange={(v) => {
                 const next = v === "none" ? "" : v;
                 setRank(next);
-                if (next && utilizationTarget === "" && DEFAULT_UTILIZATION_TARGETS[next] != null) {
-                  setUtilizationTarget(String(DEFAULT_UTILIZATION_TARGETS[next]));
+                const defaultTarget = defaultTargetFor(next);
+                if (next && utilizationTarget === "" && defaultTarget != null) {
+                  setUtilizationTarget(String(defaultTarget));
                 }
               }}
             >
@@ -644,7 +621,7 @@ export function PersonDialog({ person }: { people?: Person[]; person?: Person })
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">No rank</SelectItem>
-                {RANKS.map((r) => (
+                {rankNames.map((r) => (
                   <SelectItem key={r} value={r}>
                     {r}
                   </SelectItem>

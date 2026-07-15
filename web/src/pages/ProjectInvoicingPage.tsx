@@ -233,7 +233,7 @@ function ReconciliationCard({ invoice, periodKey }: { invoice: InvoicePeriod; pe
                   <TableCell>{r.resource ?? <span className="text-[var(--color-muted-foreground)]">Unstaffed</span>}</TableCell>
                   <TableCell className="text-right tabular-nums">{hrs(r.expectedHours)}</TableCell>
                   <TableCell className="text-right tabular-nums">{hrs(r.chargedHours)}</TableCell>
-                  <TableCell className={`text-right tabular-nums ${r.hoursVariance > 0 ? "text-red-600" : ""}`}>
+                  <TableCell className={`text-right tabular-nums ${r.hoursVariance > 0 ? "text-red-600 dark:text-red-400" : ""}`}>
                     {r.hoursVariance > 0 ? "+" : ""}
                     {hrs(r.hoursVariance)}
                   </TableCell>
@@ -460,13 +460,13 @@ function VarianceCard({ projectId }: { projectId: string }) {
                     {r.invoicedAmount != null ? money(r.invoicedAmount) : <span className="text-[var(--color-muted-foreground)]">—</span>}
                   </TableCell>
                   <TableCell>{r.invoiceDate ? new Date(`${r.invoiceDate}T00:00:00`).toLocaleDateString() : "—"}</TableCell>
-                  <TableCell className={`text-right tabular-nums ${r.variance != null && r.variance < 0 ? "text-red-600" : ""}`}>
+                  <TableCell className={`text-right tabular-nums ${r.variance != null && r.variance < 0 ? "text-red-600 dark:text-red-400" : ""}`}>
                     {r.variance != null ? signed(r.variance) : "—"}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{r.variancePct != null ? `${r.variancePct}%` : "—"}</TableCell>
                   <TableCell className="text-right tabular-nums">{money(r.cumulativeForecast)}</TableCell>
                   <TableCell className="text-right tabular-nums">{money(r.cumulativeInvoiced)}</TableCell>
-                  <TableCell className={`text-right tabular-nums ${r.cumulativeVariance < 0 ? "text-red-600" : ""}`}>
+                  <TableCell className={`text-right tabular-nums ${r.cumulativeVariance < 0 ? "text-red-600 dark:text-red-400" : ""}`}>
                     {signed(r.cumulativeVariance)}
                   </TableCell>
                 </TableRow>
@@ -476,7 +476,7 @@ function VarianceCard({ projectId }: { projectId: string }) {
                 <TableCell className="text-right tabular-nums">{money(report.totalForecast)}</TableCell>
                 <TableCell className="text-right tabular-nums">{money(report.totalInvoiced)}</TableCell>
                 <TableCell />
-                <TableCell className={`text-right tabular-nums ${report.totalVariance < 0 ? "text-red-600" : ""}`}>
+                <TableCell className={`text-right tabular-nums ${report.totalVariance < 0 ? "text-red-600 dark:text-red-400" : ""}`}>
                   {signed(report.totalVariance)}
                 </TableCell>
                 <TableCell colSpan={4} />

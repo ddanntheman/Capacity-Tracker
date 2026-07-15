@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { InlineInput, InlineSelect } from "@/components/InlineEdit";
 import { PlanStatusBadge } from "@/pages/PricingPlansPage";
+import { useRanks } from "@/lib/ranks";
 
 const money = (n: number) => `$${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 
@@ -709,7 +710,7 @@ function LineDialog({ plan, requireReason, onClose, onSaved }: { plan: PricingPl
     },
   });
 
-  const ranks = ["Analyst", "Associate", "Senior Associate", "Consultant", "Senior Consultant", "Manager", "Senior Manager", "Director", "Managing Director", "Partner"];
+  const { rankNames: ranks } = useRanks();
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>

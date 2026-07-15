@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { currentWeekStart } from "@/lib/weeks";
+import { useRanks } from "@/lib/ranks";
 
 const WEEKS_PER_YEAR = 52;
 const ENGAGEMENT_TYPES = ["T&M", "Fixed fee", "Milestone", "Retainer"];
@@ -808,7 +809,6 @@ function weeksBetween(firstIso: string, lastIso: string): number {
   return Math.round(ms / (7 * 24 * 3600 * 1000));
 }
 
-const RANKS = ["Analyst", "Associate", "Senior Associate", "Consultant", "Senior Consultant", "Manager", "Senior Manager", "Director", "Managing Director", "Partner"];
 
 /**
  * Books an unnamed placeholder role on the project: creates a placeholder
@@ -816,6 +816,7 @@ const RANKS = ["Analyst", "Associate", "Senior Associate", "Consultant", "Senior
  */
 function AddUnnamedRoleDialog({ project, onClose }: { project: Project; onClose: () => void }) {
   const qc = useQueryClient();
+  const { rankNames } = useRanks();
   const [rank, setRank] = useState("");
   const [label, setLabel] = useState("");
   const [startDate, setStartDate] = useState(currentWeekStart());
@@ -895,7 +896,7 @@ function AddUnnamedRoleDialog({ project, onClose }: { project: Project; onClose:
                 <SelectValue placeholder="Select rank" />
               </SelectTrigger>
               <SelectContent>
-                {RANKS.map((r) => (
+                {rankNames.map((r) => (
                   <SelectItem key={r} value={r}>
                     {r}
                   </SelectItem>

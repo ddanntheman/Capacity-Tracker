@@ -105,7 +105,8 @@ public record ProjectDto(
     int? WinProbability,
     string? EngagementType,
     Guid? DeliveryLeadId,
-    string? Notes)
+    string? Notes,
+    DateTime? BaselineLockedAtUtc)
 {
     /// <summary>Deal value is only included for leadership callers.</summary>
     public static ProjectDto From(Project p, bool includeFinancials) => new(
@@ -119,7 +120,8 @@ public record ProjectDto(
         p.WinProbability,
         p.EngagementType,
         p.DeliveryLeadId,
-        p.Notes);
+        p.Notes,
+        p.BaselineLockedAtUtc);
 }
 
 public record CreateProjectRequest(
@@ -144,6 +146,17 @@ public record UpdateProjectRequest(
     string? EngagementType,
     Guid? DeliveryLeadId,
     string? Notes);
+
+public record ProjectBaselineDto(
+    DateTime LockedAtUtc,
+    string? LockedBy,
+    List<ProjectBaselineLineDto> Lines);
+public record ProjectBaselineLineDto(
+    Guid PersonId,
+    string PersonName,
+    bool IsPlaceholder,
+    DateOnly WeekStart,
+    decimal Hours);
 
 // Clients
 public record ClientDto(Guid ClientId, string Name, string? Industry, string? RelationshipPartner, string? Notes)

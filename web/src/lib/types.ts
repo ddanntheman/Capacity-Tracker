@@ -48,6 +48,19 @@ export interface Project {
   engagementType: string | null;
   deliveryLeadId: string | null;
   notes: string | null;
+  baselineLockedAtUtc: string | null;
+}
+
+export interface ProjectBaseline {
+  lockedAtUtc: string;
+  lockedBy: string | null;
+  lines: {
+    personId: string;
+    personName: string;
+    isPlaceholder: boolean;
+    weekStart: string;
+    hours: number;
+  }[];
 }
 
 export interface Client {

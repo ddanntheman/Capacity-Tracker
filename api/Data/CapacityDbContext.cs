@@ -12,6 +12,7 @@ public class CapacityDbContext(DbContextOptions<CapacityDbContext> options) : Db
     public DbSet<Client> Clients => Set<Client>();
     public DbSet<ActualHours> Actuals => Set<ActualHours>();
     public DbSet<Practice> Practices => Set<Practice>();
+    public DbSet<ProjectBaselineLine> ProjectBaselineLines => Set<ProjectBaselineLine>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -99,6 +100,18 @@ public class CapacityDbContext(DbContextOptions<CapacityDbContext> options) : Db
             // One row per person/project/week.
             e.HasIndex(a => new { a.PersonId, a.ProjectId, a.WeekStart }).IsUnique();
             e.HasIndex(a => a.WeekStart);
+        });
+
+        b.Entity<ProjectBaselineLine>(e =>
+        {
+            e.HasKey(l => l.ProjectBaselineLineId);
+            e.Property(l => l.PersonName).HasMaxLength(256).IsRequired();
+            e.Property(l => l.Hours).HasPrecision(6, 2);
+            e.HasOne(l => l.Project)
+                .WithMany(p => p.BaselineLines)
+                .HasForeignKey(l => l.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(l => l.ProjectId);
         });
 
         b.Entity<AuditLog>(e =>

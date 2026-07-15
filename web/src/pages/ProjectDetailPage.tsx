@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { mondayOf, weekLabel } from "@/lib/weeks";
-import type { Person, Project } from "@/lib/types";
+import type { Person, Project, ProjectBaseline } from "@/lib/types";
 import { useAuth } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,11 @@ export default function ProjectDetailPage() {
   });
 
   const project = (projectsQuery.data ?? []).find((p) => p.projectId === id);
+  const baselineQuery = useQuery({
+    queryKey: ["project-baseline", id],
+    queryFn: () => api.getProjectBaseline(id!),
+    enabled: !!project?.baselineLockedAtUtc,
+  });
   const clientId = (clientsQuery.data ?? []).find((c) => c.name === project?.clientName)?.clientId;
 
   const team = useMemo<TeamRow[]>(() => {
@@ -189,6 +194,11 @@ export default function ProjectDetailPage() {
               {project.startDate}
               {project.endDate ? ` → ${project.endDate}` : ""}
             </span>
+            {project.baselineLockedAtUtc && (
+              <Badge variant="secondary">
+                Original plan locked {new Date(project.baselineLockedAtUtc).toLocaleDateString()}
+              </Badge>
+            )}
           </div>
         </div>
         {canEdit && (
@@ -281,6 +291,10 @@ export default function ProjectDetailPage() {
         </CardContent>
       </Card>
 
+      {project.baselineLockedAtUtc && baselineQuery.data && (
+        <BaselineCard baseline={baselineQuery.data} team={team} />
+      )}
+
       {staffOpen && (
         <StaffRangeDialog
           open={staffOpen}
@@ -309,6 +323,104 @@ export default function ProjectDetailPage() {
         />
       )}
     </div>
+  );
+}
+
+/**
+ * Original Plan card: the staffing plan locked when the pipeline engagement
+ * was won, compared with the currently staffed hours per person.
+ */
+function BaselineCard({ baseline, team }: { baseline: ProjectBaseline; team: TeamRow[] }) {
+  const rows = useMemo(() => {
+    const planned = new Map<string, { name: string; isPlaceholder: boolean; hours: number }>();
+    for (const line of baseline.lines) {
+      const entry = planned.get(line.personId) ?? { name: line.personName, isPlaceholder: line.isPlaceholder, hours: 0 };
+      entry.hours += line.hours;
+      planned.set(line.personId, entry);
+    }
+    const current = new Map(team.map((row) => [row.person.personId, row.totalHours]));
+    const merged = [...planned.entries()].map(([personId, p]) => ({
+      personId,
+      name: p.name,
+      isPlaceholder: p.isPlaceholder,
+      planned: p.hours,
+      current: current.get(personId) ?? 0,
+    }));
+    for (const row of team) {
+      if (!planned.has(row.person.personId)) {
+        merged.push({
+          personId: row.person.personId,
+          name: row.person.displayName,
+          isPlaceholder: row.person.isPlaceholder,
+          planned: 0,
+          current: row.totalHours,
+        });
+      }
+    }
+    return merged.sort((a, b) => b.planned - a.planned || b.current - a.current);
+  }, [baseline, team]);
+
+  const totalPlanned = rows.reduce((sum, r) => sum + r.planned, 0);
+  const totalCurrent = rows.reduce((sum, r) => sum + r.current, 0);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Original plan vs current staffing</CardTitle>
+        <CardDescription>
+          Pipeline plan locked on win — {new Date(baseline.lockedAtUtc).toLocaleString()}
+          {baseline.lockedBy ? ` by ${baseline.lockedBy}` : ""}. Variance is current staffed hours minus the locked plan.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Person</TableHead>
+              <TableHead className="text-right">Planned hrs</TableHead>
+              <TableHead className="text-right">Current hrs</TableHead>
+              <TableHead className="text-right">Variance</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row) => {
+              const variance = row.current - row.planned;
+              return (
+                <TableRow key={row.personId}>
+                  <TableCell className="font-medium">
+                    {row.name}
+                    {row.isPlaceholder && (
+                      <Badge variant="warn" className="ml-2">
+                        Unnamed role
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{row.planned}</TableCell>
+                  <TableCell className="text-right tabular-nums">{row.current}</TableCell>
+                  <TableCell
+                    className={`text-right font-medium tabular-nums ${
+                      variance > 0 ? "text-[var(--color-ok)]" : variance < 0 ? "text-[var(--color-danger)]" : ""
+                    }`}
+                  >
+                    {variance > 0 ? "+" : ""}
+                    {variance}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+            <TableRow>
+              <TableCell className="font-semibold">Total</TableCell>
+              <TableCell className="text-right font-semibold tabular-nums">{totalPlanned}</TableCell>
+              <TableCell className="text-right font-semibold tabular-nums">{totalCurrent}</TableCell>
+              <TableCell className="text-right font-semibold tabular-nums">
+                {totalCurrent - totalPlanned > 0 ? "+" : ""}
+                {totalCurrent - totalPlanned}
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
   );
 }
 

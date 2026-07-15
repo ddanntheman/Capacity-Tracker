@@ -28,5 +28,12 @@ public class Project
 
     public string? Notes { get; set; }
 
+    /// <summary>Set when the pipeline plan is locked as the Original Plan on win.</summary>
+    public DateTime? BaselineLockedAtUtc { get; set; }
+
+    public string? BaselineLockedBy { get; set; }
+
     public ICollection<Allocation> Allocations { get; set; } = [];
+
+    public ICollection<ProjectBaselineLine> BaselineLines { get; set; } = [];
 }

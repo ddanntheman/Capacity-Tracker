@@ -20,6 +20,10 @@ public class CapacityDbContext(DbContextOptions<CapacityDbContext> options) : Db
     public DbSet<RevenuePhase> RevenuePhases => Set<RevenuePhase>();
     public DbSet<EngagementDocument> EngagementDocuments => Set<EngagementDocument>();
     public DbSet<RevenueSetup> RevenueSetups => Set<RevenueSetup>();
+    public DbSet<LineActual> LineActuals => Set<LineActual>();
+    public DbSet<ChangeOrder> ChangeOrders => Set<ChangeOrder>();
+    public DbSet<RecoverableExpenseEntry> RecoverableExpenseEntries => Set<RecoverableExpenseEntry>();
+    public DbSet<EtcOverride> EtcOverrides => Set<EtcOverride>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -228,6 +232,67 @@ public class CapacityDbContext(DbContextOptions<CapacityDbContext> options) : Db
                 .HasForeignKey(l => l.ProjectId)
                 .OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(l => l.ProjectId);
+        });
+
+        b.Entity<LineActual>(e =>
+        {
+            e.HasKey(a => a.LineActualId);
+            e.Property(a => a.Hours).HasPrecision(6, 2);
+            e.Property(a => a.HardCost).HasPrecision(12, 2);
+            e.Property(a => a.Source).HasConversion<int>();
+            e.Property(a => a.EnteredBy).HasMaxLength(256);
+            e.HasOne(a => a.LineItem)
+                .WithMany()
+                .HasForeignKey(a => a.PlanLineItemId)
+                .OnDelete(DeleteBehavior.Cascade);
+            // One actual per line/week.
+            e.HasIndex(a => new { a.PlanLineItemId, a.WeekStart }).IsUnique();
+        });
+
+        b.Entity<ChangeOrder>(e =>
+        {
+            e.HasKey(c => c.ChangeOrderId);
+            e.Property(c => c.Title).HasMaxLength(256).IsRequired();
+            e.Property(c => c.Notes).HasMaxLength(4000);
+            e.Property(c => c.DeltaHours).HasPrecision(9, 2);
+            e.Property(c => c.DeltaFees).HasPrecision(14, 2);
+            e.Property(c => c.Status).HasConversion<int>();
+            e.Property(c => c.CreatedBy).HasMaxLength(256);
+            e.Property(c => c.ApprovedBy).HasMaxLength(256);
+            e.HasOne(c => c.Project)
+                .WithMany()
+                .HasForeignKey(c => c.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(c => c.ProjectId);
+        });
+
+        b.Entity<RecoverableExpenseEntry>(e =>
+        {
+            e.HasKey(r => r.RecoverableExpenseEntryId);
+            e.Property(r => r.Vendor).HasMaxLength(256).IsRequired();
+            e.Property(r => r.Amount).HasPrecision(12, 2);
+            e.Property(r => r.Notes).HasMaxLength(4000);
+            e.Property(r => r.EnteredBy).HasMaxLength(256);
+            e.HasOne(r => r.Project)
+                .WithMany()
+                .HasForeignKey(r => r.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(r => new { r.ProjectId, r.PeriodStart });
+        });
+
+        b.Entity<EtcOverride>(e =>
+        {
+            e.HasKey(o => o.EtcOverrideId);
+            e.Property(o => o.Hours).HasPrecision(9, 2);
+            e.Property(o => o.Fees).HasPrecision(14, 2);
+            e.Property(o => o.Justification).HasMaxLength(2000).IsRequired();
+            e.Property(o => o.CreatedBy).HasMaxLength(256);
+            e.Property(o => o.ClearedBy).HasMaxLength(256);
+            e.HasOne(o => o.Project)
+                .WithMany()
+                .HasForeignKey(o => o.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(o => o.ProjectId);
         });
 
         b.Entity<AuditLog>(e =>

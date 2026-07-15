@@ -95,7 +95,7 @@ export default function PricingPlanDetailPage() {
   });
 
   const deleteLine = useMutation({
-    mutationFn: (lineId: string) => api.deletePlanLine(id, lineId),
+    mutationFn: ({ lineId, reason }: { lineId: string; reason?: string }) => api.deletePlanLine(id, lineId, reason),
     onSuccess: () => {
       toast.success("Line removed");
       invalidate();
@@ -104,10 +104,13 @@ export default function PricingPlanDetailPage() {
   });
 
   const setHours = useMutation({
-    mutationFn: ({ lineId, weekStart, hours }: { lineId: string; weekStart: string; hours: number }) =>
-      api.setPlanLineHours(id, lineId, [{ weekStart, hours }]),
+    mutationFn: ({ lineId, weekStart, hours, reason }: { lineId: string; weekStart: string; hours: number; reason?: string }) =>
+      api.setPlanLineHours(id, lineId, [{ weekStart, hours }], reason),
     onSuccess: () => invalidate(),
-    onError: () => toast.error("Failed to save hours"),
+    onError: (e) => {
+      const body = e instanceof ApiError ? (e.body as { error?: string } | null) : null;
+      toast.error(body?.error ?? "Failed to save hours");
+    },
   });
 
   const weeks = useMemo(() => (plan ? weeksBetween(plan.startDate, plan.endDate) : []), [plan]);
@@ -117,7 +120,17 @@ export default function PricingPlanDetailPage() {
   }
 
   const locked = plan.status === "closedWon" || !canEdit;
+  const won = plan.status === "closedWon";
+  const staffingLocked = plan.status === "closedLost" || !canEdit;
   const feeBased = ["FixedFee", "Milestone", "Outcome"].includes(plan.pricingModel);
+
+  // Post-win rolling-forecast changes require a logged reason (DT-01/01a).
+  const promptReason = (): string | undefined | null => {
+    if (!won) return undefined;
+    const r = window.prompt("Reason for post-win change (e.g. staffing change, change order):");
+    if (r == null || !r.trim()) return null;
+    return r.trim();
+  };
 
   return (
     <div className="space-y-6">
@@ -319,7 +332,7 @@ export default function PricingPlanDetailPage() {
       <Card>
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base">Delivery team & weekly hours</CardTitle>
-          {canEdit && plan.status !== "closedWon" && (
+          {canEdit && plan.status !== "closedLost" && (
             <Button size="sm" variant="outline" onClick={() => setAddingLine(true)}>
               <Plus className="size-4" /> Add role
             </Button>
@@ -345,10 +358,18 @@ export default function PricingPlanDetailPage() {
                   key={line.planLineItemId}
                   line={line}
                   weeks={weeks}
-                  locked={locked}
-                  canEdit={canEdit && plan.status !== "closedWon"}
-                  onSetHours={(weekStart, hours) => setHours.mutate({ lineId: line.planLineItemId, weekStart, hours })}
-                  onDelete={() => deleteLine.mutate(line.planLineItemId)}
+                  locked={staffingLocked}
+                  canEdit={canEdit && plan.status !== "closedLost"}
+                  onSetHours={(weekStart, hours) => {
+                    const reason = promptReason();
+                    if (reason === null) return;
+                    setHours.mutate({ lineId: line.planLineItemId, weekStart, hours, reason });
+                  }}
+                  onDelete={() => {
+                    const reason = promptReason();
+                    if (reason === null) return;
+                    deleteLine.mutate({ lineId: line.planLineItemId, reason });
+                  }}
                 />
               ))}
               {plan.lineItems.length === 0 && (
@@ -361,8 +382,9 @@ export default function PricingPlanDetailPage() {
             </TableBody>
           </Table>
           <p className="mt-2 text-xs text-[var(--color-muted-foreground)]">
-            Named internal resources auto-book pipeline hours while the plan is an Active Pursuit. Placeholders and
-            subcontractors never book utilization.
+            Named internal resources auto-book pipeline hours while the plan is an Active Pursuit, and committed hours
+            after Closed/Won. Post-win staffing changes require a logged reason. Placeholders and subcontractors never
+            book utilization.
           </p>
         </CardContent>
       </Card>
@@ -385,6 +407,7 @@ export default function PricingPlanDetailPage() {
       {addingLine && (
         <LineDialog
           plan={plan}
+          requireReason={won}
           onClose={() => setAddingLine(false)}
           onSaved={() => {
             setAddingLine(false);
@@ -646,8 +669,9 @@ function LineRow({
   );
 }
 
-function LineDialog({ plan, onClose, onSaved }: { plan: PricingPlan; onClose: () => void; onSaved: () => void }) {
+function LineDialog({ plan, requireReason, onClose, onSaved }: { plan: PricingPlan; requireReason: boolean; onClose: () => void; onSaved: () => void }) {
   const [roleTitle, setRoleTitle] = useState("");
+  const [reason, setReason] = useState("");
   const [rank, setRank] = useState("");
   const [geography, setGeography] = useState("US");
   const [organization, setOrganization] = useState<"internal" | "subcontractor">("internal");
@@ -671,6 +695,7 @@ function LineDialog({ plan, onClose, onSaved }: { plan: PricingPlan; onClose: ()
         costRateOverride: costRateOverride === "" ? null : Number(costRateOverride),
         billRateOverride: billRateOverride === "" ? null : Number(billRateOverride),
         clientRate: clientRate === "" ? null : Number(clientRate),
+        reason: reason.trim() || null,
       };
       return api.createPlanLine(plan.pricingPlanId, body);
     },
@@ -768,12 +793,18 @@ function LineDialog({ plan, onClose, onSaved }: { plan: PricingPlan; onClose: ()
               <Input type="number" min={0} value={clientRate} onChange={(e) => setClientRate(e.target.value)} placeholder="Rate card default" />
             </div>
           )}
+          {requireReason && (
+            <div className="col-span-2 space-y-1.5">
+              <Label>Reason (staffing change / change order)</Label>
+              <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Backfill for roll-off" />
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={() => save.mutate()} disabled={!roleTitle.trim() || save.isPending}>
+          <Button onClick={() => save.mutate()} disabled={!roleTitle.trim() || (requireReason && !reason.trim()) || save.isPending}>
             {save.isPending ? "Saving…" : "Add role"}
           </Button>
         </DialogFooter>

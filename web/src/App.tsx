@@ -8,6 +8,7 @@ import PeoplePage from "@/pages/PeoplePage";
 import PersonProfilePage from "@/pages/PersonProfilePage";
 import ProjectsPage from "@/pages/ProjectsPage";
 import ProjectDetailPage from "@/pages/ProjectDetailPage";
+import ProjectDeliveryPage from "@/pages/ProjectDeliveryPage";
 import AuditPage from "@/pages/AuditPage";
 import UtilizationTrackerPage from "@/pages/UtilizationTrackerPage";
 import ResourceSummaryPage from "@/pages/ResourceSummaryPage";
@@ -78,6 +79,14 @@ export default function App() {
           element={
             <RequireRole roles={["viewer", "editor", "leadership"]}>
               <ProjectDetailPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/projects/:id/delivery"
+          element={
+            <RequireRole roles={["viewer", "editor", "leadership"]}>
+              <ProjectDeliveryPage />
             </RequireRole>
           }
         />

@@ -299,9 +299,10 @@ public record UpsertPlanLineItemRequest(
     decimal? CostRateOverride,
     decimal? BillRateOverride,
     decimal? ClientRate,
-    int? SortOrder);
+    int? SortOrder,
+    string? Reason = null);
 
-public record SetPlanWeekHoursRequest(List<PlanWeekHoursDto> WeekHours);
+public record SetPlanWeekHoursRequest(List<PlanWeekHoursDto> WeekHours, string? Reason = null);
 
 // Plan economics (PR-08/09/10)
 public record PlanLineEconomicsDto(
@@ -411,6 +412,112 @@ public record UpdateRevenueSetupRequest(
     bool Confirm);
 
 public record ProjectRevenueMonthDto(DateOnly PeriodStart, decimal OriginalPlan, decimal Forecast, decimal Variance);
+
+// Delivery tracking & ETC/EAC (DT-01..07, ETC-01..05)
+public record LineActualDto(Guid PlanLineItemId, DateOnly WeekStart, decimal Hours, decimal HardCost, string Source, DateTime EnteredAtUtc, string? EnteredBy);
+
+public record SaveLineActualsRequest(List<SaveLineActualEntry> Entries);
+public record SaveLineActualEntry(Guid PlanLineItemId, DateOnly WeekStart, decimal Hours, decimal? HardCost);
+
+public record WipUploadRequest(string Csv);
+public record WipUploadResultDto(int MatchedRows, int UnmatchedRows, List<string> Unmatched);
+
+public record ChangeOrderDto(
+    Guid ChangeOrderId,
+    Guid ProjectId,
+    string Title,
+    string? Notes,
+    decimal DeltaHours,
+    decimal DeltaFees,
+    string Status,
+    Guid? EngagementDocumentId,
+    DateTime CreatedAtUtc,
+    string? CreatedBy,
+    DateTime? ApprovedAtUtc,
+    string? ApprovedBy)
+{
+    public static ChangeOrderDto From(ChangeOrder c) => new(
+        c.ChangeOrderId, c.ProjectId, c.Title, c.Notes, c.DeltaHours, c.DeltaFees,
+        c.Status.ToString().ToLowerInvariant(), c.EngagementDocumentId,
+        c.CreatedAtUtc, c.CreatedBy, c.ApprovedAtUtc, c.ApprovedBy);
+}
+
+public record UpsertChangeOrderRequest(string Title, string? Notes, decimal DeltaHours, decimal DeltaFees, Guid? EngagementDocumentId);
+
+public record RecoverableExpenseDto(Guid RecoverableExpenseEntryId, Guid ProjectId, DateOnly PeriodStart, string Vendor, decimal Amount, string? Notes, DateTime EnteredAtUtc, string? EnteredBy)
+{
+    public static RecoverableExpenseDto From(RecoverableExpenseEntry r) => new(
+        r.RecoverableExpenseEntryId, r.ProjectId, r.PeriodStart, r.Vendor, r.Amount, r.Notes, r.EnteredAtUtc, r.EnteredBy);
+}
+
+public record UpsertRecoverableExpenseRequest(DateOnly PeriodStart, string Vendor, decimal Amount, string? Notes);
+
+public record EtcOverrideDto(Guid EtcOverrideId, decimal Hours, decimal Fees, string Justification, DateTime CreatedAtUtc, string? CreatedBy)
+{
+    public static EtcOverrideDto From(EtcOverride o) => new(o.EtcOverrideId, o.Hours, o.Fees, o.Justification, o.CreatedAtUtc, o.CreatedBy);
+}
+
+public record SetEtcOverrideRequest(decimal Hours, decimal Fees, string Justification);
+
+public record EtcLineDto(
+    Guid PlanLineItemId,
+    string Label,
+    string Organization,
+    decimal ForecastHours,
+    decimal ActualHours,
+    decimal ActualHardCost,
+    decimal EtcHours,
+    decimal EacHours);
+
+public record EtcSummaryDto(
+    decimal ActualHours,
+    decimal ActualFees,
+    decimal ActualCost,
+    decimal DerivedEtcHours,
+    decimal DerivedEtcFees,
+    decimal DerivedEtcCost,
+    decimal? OverrideEtcHours,
+    decimal? OverrideEtcFees,
+    decimal EacHours,
+    decimal EacFees,
+    decimal EacCost,
+    decimal? EacMarginPct,
+    decimal BaselineHours,
+    decimal OriginalTcv,
+    decimal ApprovedChangeOrderHours,
+    decimal ApprovedChangeOrderFees,
+    decimal AmendedBaselineHours,
+    decimal AmendedTcv,
+    decimal HoursVariance,
+    decimal FeesVariance,
+    bool HoursOverrun,
+    bool FeeOverrun,
+    bool MarginErosion,
+    List<EtcLineDto> Lines);
+
+public record DeliveryWeekDto(DateOnly WeekStart, decimal ForecastHours, decimal? ActualHours, decimal? ActualHardCost, string? ActualSource);
+
+public record DeliveryLineDto(
+    Guid PlanLineItemId,
+    string Label,
+    string Organization,
+    bool IsNamed,
+    List<DeliveryWeekDto> Weeks);
+
+public record ProjectDeliveryDto(
+    Guid ProjectId,
+    Guid PricingPlanId,
+    string PlanStatus,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    List<DeliveryLineDto> Lines,
+    EtcSummaryDto Etc,
+    EtcOverrideDto? Override,
+    List<ChangeOrderDto> ChangeOrders,
+    List<RecoverableExpenseDto> Expenses,
+    bool ActualsStale,
+    DateTime? LastActualEntryUtc,
+    List<DateOnly> ZeroRevenueMonths);
 
 // Identity
 public record MeDto(Guid Oid, string DisplayName, string Email, IEnumerable<string> Roles);

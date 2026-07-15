@@ -28,6 +28,9 @@ public class Project
 
     public string? Notes { get; set; }
 
+    /// <summary>Official finance job code; null until assigned (a placeholder code is displayed meanwhile, RU-06).</summary>
+    public string? JobCode { get; set; }
+
     /// <summary>Set when the pipeline plan is locked as the Original Plan on win.</summary>
     public DateTime? BaselineLockedAtUtc { get; set; }
 

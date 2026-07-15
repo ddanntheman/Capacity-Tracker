@@ -48,6 +48,7 @@ export interface Project {
   engagementType: string | null;
   deliveryLeadId: string | null;
   notes: string | null;
+  jobCode: string | null;
   baselineLockedAtUtc: string | null;
 }
 
@@ -403,6 +404,107 @@ export interface ProjectDelivery {
   actualsStale: boolean;
   lastActualEntryUtc: string | null;
   zeroRevenueMonths: string[];
+}
+
+export interface InvoiceWeekCell {
+  weekStart: string;
+  hours: number;
+  fromActuals: boolean;
+}
+
+export interface InvoiceLine {
+  planLineItemId: string;
+  role: string;
+  resource: string | null;
+  organization: string;
+  weeks: InvoiceWeekCell[];
+  totalHours: number;
+  rate: number | null;
+  amount: number;
+}
+
+export interface ReconciliationLine {
+  planLineItemId: string;
+  role: string;
+  resource: string | null;
+  expectedHours: number;
+  chargedHours: number;
+  hoursVariance: number;
+  standardBillRate: number | null;
+  grossFeesAtStandard: number;
+}
+
+export interface InvoicePeriod {
+  projectId: string;
+  periodStart: string;
+  feeStructure: string;
+  feeStructureConfirmed: boolean;
+  invoiceBasis: "hours" | "schedule";
+  lines: InvoiceLine[];
+  totalHours: number;
+  invoiceAmount: number;
+  reconciliation: ReconciliationLine[];
+  grossFeesAtStandard: number;
+  recoverableExpenses: number;
+  netFees: number;
+  feeAdjustment: number;
+  recoveryPct: number | null;
+  rph: number | null;
+  invoicedAmount: number | null;
+  invoiceDate: string | null;
+  invoiceNotes: string | null;
+  invoiceVariance: number | null;
+  availablePeriods: string[];
+}
+
+export interface RollupMonth {
+  periodStart: string;
+  originalPlan: number;
+  forecast: number;
+  actual: number;
+  netFeesForecast: number;
+  netFeesActual: number;
+  revenueTarget: number | null;
+  netFeesTarget: number | null;
+}
+
+export interface RollupEngagementMonth {
+  periodStart: string;
+  originalPlan: number;
+  forecast: number;
+  actual: number;
+}
+
+export interface RollupEngagement {
+  projectId: string;
+  pricingPlanId: string;
+  client: string;
+  engagement: string;
+  jobCode: string;
+  jobCodePlaceholder: boolean;
+  mdOwner: string | null;
+  engagementType: string | null;
+  practice: string | null;
+  planStatus: string;
+  months: RollupEngagementMonth[];
+  originalPlanTotal: number;
+  forecastTotal: number;
+  actualTotal: number;
+}
+
+export interface FirmRollup {
+  from: string;
+  to: string;
+  months: RollupMonth[];
+  engagements: RollupEngagement[];
+}
+
+export interface FirmTarget {
+  periodStart: string;
+  revenueTarget: number;
+  netFeesTarget: number;
+  updatedAtUtc: string;
+  updatedBy: string | null;
 }
 
 export interface AuditEntry {

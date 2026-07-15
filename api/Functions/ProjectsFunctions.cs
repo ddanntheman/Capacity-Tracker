@@ -71,6 +71,7 @@ public class ProjectsFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
             EngagementType = body.EngagementType?.Trim(),
             DeliveryLeadId = body.DeliveryLeadId,
             Notes = body.Notes?.Trim(),
+            JobCode = NormalizeJobCode(body.JobCode),
         };
         db.Projects.Add(project);
         await EnsureClient(project.ClientName);
@@ -119,6 +120,7 @@ public class ProjectsFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
         project.EngagementType = body.EngagementType?.Trim();
         project.DeliveryLeadId = body.DeliveryLeadId;
         project.Notes = body.Notes?.Trim();
+        project.JobCode = NormalizeJobCode(body.JobCode);
 
         await EnsureClient(project.ClientName);
         if (wonNow)
@@ -315,5 +317,9 @@ WHERE s.[ProjectId] = {source.ProjectId}
         [nameof(Project.EngagementType)] = p.EngagementType,
         [nameof(Project.DeliveryLeadId)] = p.DeliveryLeadId?.ToString(),
         [nameof(Project.Notes)] = p.Notes,
+        [nameof(Project.JobCode)] = p.JobCode,
     };
+
+    private static string? NormalizeJobCode(string? jobCode) =>
+        string.IsNullOrWhiteSpace(jobCode) ? null : jobCode.Trim();
 }

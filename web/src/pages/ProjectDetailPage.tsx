@@ -112,6 +112,7 @@ export default function ProjectDetailPage() {
         engagementType: merged.engagementType,
         deliveryLeadId: merged.deliveryLeadId,
         notes: merged.notes,
+        jobCode: merged.jobCode,
       });
     },
     onSuccess: () => {
@@ -194,6 +195,15 @@ export default function ProjectDetailPage() {
               {project.startDate}
               {project.endDate ? ` → ${project.endDate}` : ""}
             </span>
+            {canEdit ? (
+              <InlineInput
+                value={project.jobCode ?? ""}
+                onSave={(v) => inlineUpdate.mutate({ jobCode: v || null })}
+                display={project.jobCode ?? "Set job code"}
+              />
+            ) : (
+              <span className="text-[var(--color-muted-foreground)]">{project.jobCode ?? "Job code pending"}</span>
+            )}
             {project.baselineLockedAtUtc && (
               <Badge variant="secondary">
                 Original plan locked {new Date(project.baselineLockedAtUtc).toLocaleDateString()}
@@ -204,6 +214,9 @@ export default function ProjectDetailPage() {
         <div className="flex gap-2">
           <Button variant="outline" asChild>
             <Link to={`/projects/${project.projectId}/delivery`}>Delivery & ETC</Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link to={`/projects/${project.projectId}/invoicing`}>Invoicing</Link>
           </Button>
           {canEdit && (
             <>

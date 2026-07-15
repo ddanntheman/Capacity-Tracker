@@ -52,14 +52,20 @@ public static class RevenuePhasingService
             }
         }
 
-        // Absorb rounding in the final month so the phasing ties to TCV (CW-03).
+        // Round each month first, then absorb the residual in the final month
+        // so the phasing sums exactly to TCV (CW-03).
+        foreach (var m in months)
+        {
+            byMonth[m] = Math.Round(byMonth[m], 2);
+        }
+
         var drift = economics.Tcv - byMonth.Values.Sum();
         if (drift != 0)
         {
             byMonth[months[^1]] += drift;
         }
 
-        return months.Select(m => new RevenuePhaseDto(m, Math.Round(byMonth[m], 2), true)).ToList();
+        return months.Select(m => new RevenuePhaseDto(m, byMonth[m], true)).ToList();
     }
 
     public static List<DateOnly> MonthsBetween(DateOnly start, DateOnly end)

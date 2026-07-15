@@ -91,6 +91,11 @@ public class RevenueFunctions(CapacityDbContext db, RequestAuthorizer auth, Audi
             return new NotFoundResult();
         }
 
+        if (plan.Status == PlanStatus.ClosedLost)
+        {
+            return new BadRequestObjectResult(new { error = "Closed/Lost plans are read-only." });
+        }
+
         // The Original Plan layer is immutable; only the Forecast layer is editable.
         var existing = await db.RevenuePhases
             .Where(r => r.PricingPlanId == id && r.Layer == RevenueLayer.Forecast)

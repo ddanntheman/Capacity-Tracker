@@ -367,7 +367,7 @@ export default function PricingPlanDetailPage() {
         </CardContent>
       </Card>
 
-      {hasRole("editor", "leadership") && <PhasingCard planId={id} won={plan.status === "closedWon"} canEdit={canEdit && plan.status !== "closedWon"} />}
+      {hasRole("editor", "leadership") && <PhasingCard planId={id} won={plan.status === "closedWon"} canEdit={canEdit && plan.status !== "closedLost"} />}
 
       {converting && (
         <ConvertDialog

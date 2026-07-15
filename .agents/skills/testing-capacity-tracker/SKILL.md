@@ -8,7 +8,7 @@ description: Run and test the Capacity Tracker app (React/Vite web + Azure Funct
 ## Local dev setup (preferred over live site)
 The deployed Static Web App (https://salmon-desert-092eaec10.7.azurestaticapps.net) requires an interactive Entra ID login that can't be automated. Test locally instead:
 
-1. Start Azurite (Functions needs a storage emulator): `azurite --silent --location /tmp/azurite &`
+1. Start Azurite (Functions needs a storage emulator): `azurite --silent --location /tmp/azurite &`. In non-interactive shells `azurite`/`func` may not be on PATH — use the nvm node bin (e.g. `export PATH="$HOME/.nvm/versions/node/v22.12.0/bin:$PATH"`) plus `export DOTNET_ROOT=$HOME/.dotnet; export PATH=$HOME/.dotnet:$PATH` for the API build.
 2. API: `cd api && func start` (port 7071). Point it at the dev Azure SQL DB via the connection string in local.settings.json (server `sql-cap-dev-tfoiku.database.windows.net`, DB `Capacity`). Azure auth comes from the `az` CLI session.
 3. Web: `cd web && npm run dev` (port 5173). The Vite dev server proxies `/api` to :7071.
 4. Auth is mocked in dev: set `ALLOW_DEV_AUTH=true` on the API; the web app sends dev headers for `dev.user@andersenconsulting.com` with editor+leadership roles. No login screen appears.
@@ -40,6 +40,7 @@ The deployed Static Web App (https://salmon-desert-092eaec10.7.azurestaticapps.n
 - Cleanup via SQL works with `sqlcmd -S sql-cap-dev-tfoiku.database.windows.net -d capacity --authentication-method ActiveDirectoryDefault -Q "..."` (uses the az session).
 - Data written during testing goes to the real dev DB — record what you changed (allocations, rates, actuals) in the test report so it can be reverted.
 - Over-capacity warnings are transient toasts — capture a screenshot immediately after Save, and add a recording annotation the moment the toast appears; the toast text is also readable from the page HTML dump if the screenshot misses it.
+- Numeric inputs prefilled with a default (e.g. invoice amount defaulting to the forecast) append typed digits to the existing value — set the value via a native setter + `input` event, or select-all first, then verify the visible value before saving.
 - The range staffing dialog ("Staff <person>") numeric inputs (Weeks, Hrs/week) are clamped controlled inputs: typing can momentarily produce clamped values (e.g. appending a digit yields 41→52). Set values by selecting all text first, or via a native value setter + `input` event in the console, then verify the visible value before saving.
 - To revert a temporary staffing-range allocation via the UI, reopen the same Staff dialog with the identical project/start week/weeks and save with Hrs/week = 0, then verify via `GET /api/allocations?personId=…&weekStart=…&weeks=1` returns `[]`.
 - Holiday-capacity checks: use Labor Day week (Mon Sep 7 2026 → 32h cap) with Aug 31 as the 40h control week; the person profile shows a "Holiday (32h cap)" badge and the tracker computes Available from the reduced capacity.
@@ -49,6 +50,16 @@ The deployed Static Web App (https://salmon-desert-092eaec10.7.azurestaticapps.n
 - Cleanup of won/lost test plans: Closed/Won plans have no Delete button — instead remove staffing from the project (Delivery team → Remove), archive the project(s) from /projects (note: converting a plan can leave both the original pipeline project and the plan's project — archive both), delete the Closed/Lost plan from its detail page, and remove any temporary rate-card rows from /ratecard.
 - Documents download verification: extract the real `/api/projects/:id/documents/:docId` URL from the page anchor rather than guessing it, then compare MD5 against the source file.
 - The People edit dialog's Save button sits below the fold — scroll the dialog's inner container (scroll at the dialog center, may take two scrolls) until Save is visible before clicking; clicking a tag's × removes it (aim at the × glyph, not the badge center).
+
+- Invoicing/rollups cleanup: rate-card rows and the project job code are deletable via UI. Invoice records now have a trash icon on the captured card (audited, with confirmation), and firm targets have a per-month clear button in the /rollups Targets dialog — prefer these over sqlcmd; fall back to SQL only if the UI delete is missing/broken.
+- Invoice variance report (/projects/:id/invoicing): the "Invoice variance — all periods" card lists every billing period with forecast vs captured, variance $/%, and cumulative columns; uncaptured periods must show "—" and NOT count toward cumulative invoiced/variance. Export CSV lands as invoice-variance.csv in /tmp/chisel_browser_downloads.
+- Clearing a plan line's weekly hours via `PUT /plans/:id/lines/:lineId/hours` with an empty `weekHours` array is a no-op — send every existing week explicitly with `hours: 0` (read the current weeks from the plan GET first).
+- After saving an invoice capture, the card can briefly render empty — re-navigate to the invoicing page before asserting persistence.
+- Stacked PRs: squash-merging a PR whose base is another PR's branch lands the commit on that intermediate branch, NOT the default branch — after merging a stack, verify `git log` on the default branch actually contains the top PR's changes; if not, cherry-pick the squashed commit onto default and open a follow-up PR.
+- CI (`ci.yml`) may only trigger on PRs targeting `main`/`develop`; PRs to other default branches can show zero checks — run lint/build/tests locally instead of waiting.
+- Verify a web deploy by comparing the hashed asset name (`assets/index-*.js`) in the live site's HTML vs local `dist/index.html`; verify the API deploy from the zip-deploy response (`provisioningState: Succeeded`, `end_time`) — `az functionapp show lastModifiedTimeUtc` can be stale/misleading.
+
+- Delivery Health (/delivery-health) testing: force a red state via the delivery page's "Override ETC" (e.g. hours above baseline, fees above TCV, justification required) — the row flips to "Needs attention" with hours/fee overrun alerts and the dashboard "Delivery health" card count increments; clear the override to restore. Status cards act as table filters (click again to unfilter). CSV export lands in /tmp/chisel_browser_downloads or ~/Downloads.
 
 ## Live site failing but local passing? Check for stale deployment
 - The GitHub "Deploy Dev" workflow only triggers on pushes to `develop`, but merges land on the default branch — the live dev site can silently fall behind merged code.

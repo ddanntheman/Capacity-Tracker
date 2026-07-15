@@ -54,6 +54,38 @@ public class EngagementDocument
 }
 
 /// <summary>
+/// A persisted heuristic extraction from an uploaded Task Order document
+/// (RS-02/03): proposed revenue-setup terms tied to the source document,
+/// applied to the revenue setup only after explicit review (TO-02/03).
+/// </summary>
+public class TaskOrderExtraction
+{
+    public Guid TaskOrderExtractionId { get; set; }
+
+    public Guid ProjectId { get; set; }
+    public Project? Project { get; set; }
+
+    public Guid EngagementDocumentId { get; set; }
+    public EngagementDocument? Document { get; set; }
+
+    public string FileName { get; set; } = string.Empty;
+
+    public PricingModel? FeeStructure { get; set; }
+    public decimal? Tcv { get; set; }
+    public decimal? ContractRph { get; set; }
+    public string? InvoiceFrequency { get; set; }
+
+    /// <summary>Matched source snippets, one per proposed field.</summary>
+    public string Evidence { get; set; } = string.Empty;
+
+    public DateTime CreatedAtUtc { get; set; }
+    public string? CreatedBy { get; set; }
+
+    public DateTime? AppliedAtUtc { get; set; }
+    public string? AppliedBy { get; set; }
+}
+
+/// <summary>
 /// The confirmed revenue setup for a won engagement (RS-02/03/04): fee
 /// structure, TCV, and invoice schedule that drive the revenue forecast.
 /// Values are proposed by the system from the plan/Task Order and take effect

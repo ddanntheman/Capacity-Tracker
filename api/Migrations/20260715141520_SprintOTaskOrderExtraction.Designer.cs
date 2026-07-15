@@ -4,6 +4,7 @@ using CapacityTracker.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CapacityTracker.Api.Migrations
 {
     [DbContext(typeof(CapacityDbContext))]
-    partial class CapacityDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260715141520_SprintOTaskOrderExtraction")]
+    partial class SprintOTaskOrderExtraction
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -917,34 +920,6 @@ namespace CapacityTracker.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("RevenueSetups");
-                });
-
-            modelBuilder.Entity("CapacityTracker.Api.Models.StandardRank", b =>
-                {
-                    b.Property<Guid>("StandardRankId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int?>("DefaultUtilizationTarget")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsArchived")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("int");
-
-                    b.HasKey("StandardRankId");
-
-                    b.HasIndex("Name")
-                        .IsUnique();
-
-                    b.ToTable("StandardRanks");
                 });
 
             modelBuilder.Entity("CapacityTracker.Api.Models.TaskOrderExtraction", b =>

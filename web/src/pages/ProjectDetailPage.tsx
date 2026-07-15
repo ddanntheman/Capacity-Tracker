@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 import { mondayOf, weekLabel } from "@/lib/weeks";
-import type { Person, Project, ProjectBaseline, RevenueSetup } from "@/lib/types";
+import type { EngagementDocument, Person, Project, ProjectBaseline, RevenueSetup } from "@/lib/types";
 import { useAuth } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -461,8 +461,27 @@ function RevenueSetupCard({ projectId, canEdit }: { projectId: string; canEdit: 
     queryFn: () => api.getRevenueSetup(projectId),
   });
   const [editing, setEditing] = useState<RevenueSetup | null>(null);
+  const extractionsQuery = useQuery({
+    queryKey: ["extractions", projectId],
+    queryFn: () => api.listExtractions(projectId),
+  });
 
-  const refresh = () => void qc.invalidateQueries({ queryKey: ["revenue-setup", projectId] });
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: ["revenue-setup", projectId] });
+    void qc.invalidateQueries({ queryKey: ["extractions", projectId] });
+  };
+
+  const apply = useMutation({
+    mutationFn: (extractionId: string) => api.applyExtraction(projectId, extractionId),
+    onSuccess: () => {
+      toast.success("Extracted terms applied to the revenue setup — review and confirm");
+      refresh();
+    },
+    onError: (e) => {
+      const body = e instanceof ApiError ? (e.body as { error?: string } | null) : null;
+      toast.error(body?.error ?? "Failed to apply extraction");
+    },
+  });
 
   const propose = useMutation({
     mutationFn: () => api.proposeRevenueSetup(projectId),
@@ -498,6 +517,7 @@ function RevenueSetupCard({ projectId, canEdit }: { projectId: string; canEdit: 
   });
 
   const setup = setupQuery.data;
+  const pending = (extractionsQuery.data ?? []).find((x) => !x.appliedAtUtc) ?? null;
   if (setupQuery.isLoading) return null;
 
   return (
@@ -558,6 +578,66 @@ function RevenueSetupCard({ projectId, canEdit }: { projectId: string; canEdit: 
               </Button>
             )}
           </>
+        )}
+        {pending && (!setup || !setup.confirmed) && (
+          <div className="rounded-md border border-[var(--color-warn)]/40 bg-[var(--color-warn)]/5 p-3 text-sm">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="font-medium">
+                Proposed from Task Order <span className="font-normal text-[var(--color-muted-foreground)]">({pending.fileName})</span>
+              </p>
+              {canEdit && (
+                <Button size="sm" onClick={() => apply.mutate(pending.taskOrderExtractionId)} disabled={apply.isPending}>
+                  Apply to setup
+                </Button>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-x-8 gap-y-2 md:grid-cols-4">
+              <div>
+                <p className="text-xs text-[var(--color-muted-foreground)]">Fee structure</p>
+                <p>
+                  {pending.feeStructure ?? "—"}
+                  <span className="text-xs text-[var(--color-muted-foreground)]"> (now: {setup?.feeStructure ?? "—"})</span>
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-[var(--color-muted-foreground)]">TCV</p>
+                <p className="tabular-nums">
+                  {pending.tcv != null ? `$${pending.tcv.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "—"}
+                  <span className="text-xs text-[var(--color-muted-foreground)]">
+                    {" "}(now: {setup ? `$${setup.tcv.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "—"})
+                  </span>
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-[var(--color-muted-foreground)]">Rate</p>
+                <p className="tabular-nums">
+                  {pending.contractRph != null ? `$${pending.contractRph.toLocaleString()}/hr` : "—"}
+                  <span className="text-xs text-[var(--color-muted-foreground)]">
+                    {" "}(now: {setup?.contractRph != null ? `$${setup.contractRph.toLocaleString()}/hr` : "—"})
+                  </span>
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-[var(--color-muted-foreground)]">Invoice frequency</p>
+                <p>
+                  {pending.invoiceFrequency ?? "—"}
+                  <span className="text-xs text-[var(--color-muted-foreground)]"> (now: {setup?.invoiceFrequency ?? "—"})</span>
+                </p>
+              </div>
+            </div>
+            {pending.evidence && (
+              <div className="mt-2 space-y-0.5">
+                {pending.evidence.split("\n").map((line, i) => (
+                  <p key={i} className="text-xs text-[var(--color-muted-foreground)]">
+                    {line}
+                  </p>
+                ))}
+              </div>
+            )}
+            <p className="mt-2 text-xs text-[var(--color-muted-foreground)]">
+              Nothing changes until you apply, then review &amp; confirm the setup.
+            </p>
+          </div>
         )}
         {editing && (
           <Dialog open onOpenChange={(o) => !o && setEditing(null)}>
@@ -712,6 +792,18 @@ function DocumentsCard({ projectId, canEdit }: { projectId: string; canEdit: boo
     },
   });
 
+  const extract = useMutation({
+    mutationFn: (docId: string) => api.extractDocument(projectId, docId),
+    onSuccess: () => {
+      toast.success("Terms extracted — review the proposal on the Revenue setup card");
+      void qc.invalidateQueries({ queryKey: ["extractions", projectId] });
+    },
+    onError: (e) => {
+      const body = e instanceof ApiError ? (e.body as { error?: string } | null) : null;
+      toast.error(body?.error ?? "Failed to extract terms");
+    },
+  });
+
   const remove = useMutation({
     mutationFn: (docId: string) => api.deleteDocument(projectId, docId),
     onSuccess: () => {
@@ -783,6 +875,16 @@ function DocumentsCard({ projectId, canEdit }: { projectId: string; canEdit: boo
                 <TableCell className="text-right tabular-nums">{(d.sizeBytes / 1024).toFixed(0)} KB</TableCell>
                 {canEdit && (
                   <TableCell className="text-right">
+                    {isTextDocument(d) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => extract.mutate(d.engagementDocumentId)}
+                        disabled={extract.isPending}
+                      >
+                        Extract terms
+                      </Button>
+                    )}
                     <Button variant="ghost" size="sm" onClick={() => remove.mutate(d.engagementDocumentId)}>
                       Delete
                     </Button>
@@ -802,6 +904,12 @@ function DocumentsCard({ projectId, canEdit }: { projectId: string; canEdit: boo
       </CardContent>
     </Card>
   );
+}
+
+function isTextDocument(d: EngagementDocument): boolean {
+  if (d.contentType.startsWith("text/")) return true;
+  const ext = d.fileName.slice(d.fileName.lastIndexOf(".")).toLowerCase();
+  return ext === ".txt" || ext === ".md" || ext === ".markdown" || ext === ".csv";
 }
 
 function weeksBetween(firstIso: string, lastIso: string): number {

@@ -416,6 +416,37 @@ public record RevenueSetupDto(
         r.ConfirmedAtUtc);
 }
 
+public record TaskOrderExtractionDto(
+    Guid TaskOrderExtractionId,
+    Guid ProjectId,
+    Guid EngagementDocumentId,
+    string FileName,
+    string? FeeStructure,
+    decimal? Tcv,
+    decimal? ContractRph,
+    string? InvoiceFrequency,
+    string Evidence,
+    DateTime CreatedAtUtc,
+    string? CreatedBy,
+    DateTime? AppliedAtUtc,
+    string? AppliedBy)
+{
+    public static TaskOrderExtractionDto From(TaskOrderExtraction t) => new(
+        t.TaskOrderExtractionId,
+        t.ProjectId,
+        t.EngagementDocumentId,
+        t.FileName,
+        t.FeeStructure?.ToString(),
+        t.Tcv,
+        t.ContractRph,
+        t.InvoiceFrequency,
+        t.Evidence,
+        t.CreatedAtUtc,
+        t.CreatedBy,
+        t.AppliedAtUtc,
+        t.AppliedBy);
+}
+
 public record UpdateRevenueSetupRequest(
     string FeeStructure,
     decimal Tcv,

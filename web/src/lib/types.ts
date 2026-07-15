@@ -287,6 +287,22 @@ export interface RevenueSetup {
   confirmedAtUtc: string | null;
 }
 
+export interface TaskOrderExtraction {
+  taskOrderExtractionId: string;
+  projectId: string;
+  engagementDocumentId: string;
+  fileName: string;
+  feeStructure: string | null;
+  tcv: number | null;
+  contractRph: number | null;
+  invoiceFrequency: string | null;
+  evidence: string;
+  createdAtUtc: string;
+  createdBy: string | null;
+  appliedAtUtc: string | null;
+  appliedBy: string | null;
+}
+
 export interface ProjectRevenueMonth {
   periodStart: string;
   originalPlan: number;

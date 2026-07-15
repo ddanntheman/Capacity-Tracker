@@ -20,6 +20,7 @@ public class CapacityDbContext(DbContextOptions<CapacityDbContext> options) : Db
     public DbSet<RevenuePhase> RevenuePhases => Set<RevenuePhase>();
     public DbSet<EngagementDocument> EngagementDocuments => Set<EngagementDocument>();
     public DbSet<RevenueSetup> RevenueSetups => Set<RevenueSetup>();
+    public DbSet<TaskOrderExtraction> TaskOrderExtractions => Set<TaskOrderExtraction>();
     public DbSet<LineActual> LineActuals => Set<LineActual>();
     public DbSet<ChangeOrder> ChangeOrders => Set<ChangeOrder>();
     public DbSet<RecoverableExpenseEntry> RecoverableExpenseEntries => Set<RecoverableExpenseEntry>();
@@ -223,6 +224,28 @@ public class CapacityDbContext(DbContextOptions<CapacityDbContext> options) : Db
                 .HasForeignKey(r => r.ProjectId)
                 .OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(r => r.ProjectId).IsUnique();
+        });
+
+        b.Entity<TaskOrderExtraction>(e =>
+        {
+            e.HasKey(t => t.TaskOrderExtractionId);
+            e.Property(t => t.FileName).HasMaxLength(512).IsRequired();
+            e.Property(t => t.FeeStructure).HasConversion<int?>();
+            e.Property(t => t.Tcv).HasPrecision(14, 2);
+            e.Property(t => t.ContractRph).HasPrecision(10, 2);
+            e.Property(t => t.InvoiceFrequency).HasMaxLength(64);
+            e.Property(t => t.Evidence).HasMaxLength(4000);
+            e.Property(t => t.CreatedBy).HasMaxLength(256);
+            e.Property(t => t.AppliedBy).HasMaxLength(256);
+            e.HasOne(t => t.Project)
+                .WithMany()
+                .HasForeignKey(t => t.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(t => t.Document)
+                .WithMany()
+                .HasForeignKey(t => t.EngagementDocumentId)
+                .OnDelete(DeleteBehavior.NoAction);
+            e.HasIndex(t => t.ProjectId);
         });
 
         b.Entity<ProjectBaselineLine>(e =>

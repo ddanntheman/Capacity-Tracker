@@ -17,6 +17,7 @@ import type {
   RateCardEntry,
   RevenuePhase,
   RevenueSetup,
+  TaskOrderExtraction,
   EngagementDocument,
   PlanPhasing,
   ProjectBaseline,
@@ -220,6 +221,12 @@ export const api = {
   },
   deleteDocument: (projectId: string, docId: string) =>
     request<void>(`/projects/${projectId}/documents/${docId}`, { method: "DELETE" }),
+
+  listExtractions: (projectId: string) => request<TaskOrderExtraction[]>(`/projects/${projectId}/extractions`),
+  extractDocument: (projectId: string, docId: string) =>
+    request<TaskOrderExtraction>(`/projects/${projectId}/documents/${docId}/extract`, { method: "POST" }),
+  applyExtraction: (projectId: string, extractionId: string) =>
+    request<RevenueSetup>(`/projects/${projectId}/extractions/${extractionId}/apply`, { method: "POST" }),
 
   getRevenueSetup: (projectId: string) => request<RevenueSetup | null>(`/projects/${projectId}/revenue-setup`),
   proposeRevenueSetup: (projectId: string) =>

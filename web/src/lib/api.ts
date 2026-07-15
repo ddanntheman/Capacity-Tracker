@@ -21,6 +21,7 @@ import type {
   PlanPhasing,
   ProjectBaseline,
   ProjectDelivery,
+  DeliveryHealthRow,
   ProjectStatus,
   ChangeOrder,
   RecoverableExpense,
@@ -267,6 +268,8 @@ export const api = {
     request<EtcOverrideInfo>(`/projects/${projectId}/etc-override`, { method: "PUT", body: JSON.stringify(body) }),
   clearEtcOverride: (projectId: string) =>
     request<void>(`/projects/${projectId}/etc-override`, { method: "DELETE" }),
+
+  getDeliveryHealth: () => request<DeliveryHealthRow[]>("/delivery/health"),
 
   getProjectInvoicing: (projectId: string, period?: string) =>
     request<InvoicePeriod>(`/projects/${projectId}/invoicing${period ? `?period=${period}` : ""}`),

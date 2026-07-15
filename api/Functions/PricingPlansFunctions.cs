@@ -266,9 +266,14 @@ public class PricingPlansFunctions(CapacityDbContext db, RequestAuthorizer auth,
             return new NotFoundResult();
         }
 
-        if (plan.Status == PlanStatus.ClosedWon)
+        if (plan.Status == PlanStatus.ClosedLost)
         {
-            return new BadRequestObjectResult(new { error = "A Closed/Won plan is locked." });
+            return new BadRequestObjectResult(new { error = "Closed/Lost plans are read-only." });
+        }
+
+        if (RequireReason(plan, body!.Reason) is IActionResult reasonError)
+        {
+            return reasonError;
         }
 
         var line = new PlanLineItem
@@ -280,7 +285,8 @@ public class PricingPlansFunctions(CapacityDbContext db, RequestAuthorizer auth,
         ApplyLine(line, body);
         db.PlanLineItems.Add(line);
         plan.UpdatedAtUtc = DateTime.UtcNow;
-        audit.Record(nameof(PlanLineItem), line.PlanLineItemId.ToString(), "created", null, line.RoleTitle, result.User!.Oid);
+        audit.Record(nameof(PlanLineItem), line.PlanLineItemId.ToString(), "created", null,
+            WithReason(line.RoleTitle, body.Reason), result.User!.Oid);
         await db.SaveChangesAsync();
         return new OkObjectResult(await GetDto(id));
     }
@@ -309,16 +315,25 @@ public class PricingPlansFunctions(CapacityDbContext db, RequestAuthorizer auth,
             return new NotFoundResult();
         }
 
-        if (plan.Status == PlanStatus.ClosedWon)
+        if (plan.Status == PlanStatus.ClosedLost)
         {
-            return new BadRequestObjectResult(new { error = "A Closed/Won plan is locked." });
+            return new BadRequestObjectResult(new { error = "Closed/Lost plans are read-only." });
+        }
+
+        if (RequireReason(plan, body!.Reason) is IActionResult reasonError)
+        {
+            return reasonError;
         }
 
         var before = SnapshotLine(line);
-        ApplyLine(line, body!);
-        line.SortOrder = body!.SortOrder ?? line.SortOrder;
+        ApplyLine(line, body);
+        line.SortOrder = body.SortOrder ?? line.SortOrder;
         plan.UpdatedAtUtc = DateTime.UtcNow;
         audit.RecordDiff(nameof(PlanLineItem), lineId.ToString(), before, SnapshotLine(line), result.User!.Oid);
+        if (!string.IsNullOrWhiteSpace(body.Reason))
+        {
+            audit.Record(nameof(PlanLineItem), lineId.ToString(), "reason", null, body.Reason.Trim(), result.User!.Oid);
+        }
         await booking.SyncBookings(id);
         await db.SaveChangesAsync();
         return new OkObjectResult(await GetDto(id));
@@ -341,14 +356,21 @@ public class PricingPlansFunctions(CapacityDbContext db, RequestAuthorizer auth,
             return new NotFoundResult();
         }
 
-        if (plan.Status == PlanStatus.ClosedWon)
+        if (plan.Status == PlanStatus.ClosedLost)
         {
-            return new BadRequestObjectResult(new { error = "A Closed/Won plan is locked." });
+            return new BadRequestObjectResult(new { error = "Closed/Lost plans are read-only." });
+        }
+
+        var reason = req.Query["reason"].ToString();
+        if (RequireReason(plan, reason) is IActionResult reasonError)
+        {
+            return reasonError;
         }
 
         db.PlanLineItems.Remove(line);
         plan.UpdatedAtUtc = DateTime.UtcNow;
-        audit.Record(nameof(PlanLineItem), lineId.ToString(), "deleted", line.RoleTitle, null, result.User!.Oid);
+        audit.Record(nameof(PlanLineItem), lineId.ToString(), "deleted",
+            WithReason(line.RoleTitle, reason), null, result.User!.Oid);
         await db.SaveChangesAsync();
 
         await booking.SyncBookings(id);
@@ -385,9 +407,14 @@ public class PricingPlansFunctions(CapacityDbContext db, RequestAuthorizer auth,
             return new NotFoundResult();
         }
 
-        if (plan.Status == PlanStatus.ClosedWon)
+        if (plan.Status == PlanStatus.ClosedLost)
         {
-            return new BadRequestObjectResult(new { error = "A Closed/Won plan is locked." });
+            return new BadRequestObjectResult(new { error = "Closed/Lost plans are read-only." });
+        }
+
+        if (RequireReason(plan, body.Reason) is IActionResult reasonError)
+        {
+            return reasonError;
         }
 
         var oldTotal = line.WeekHours.Sum(w => w.Hours);
@@ -429,7 +456,7 @@ public class PricingPlansFunctions(CapacityDbContext db, RequestAuthorizer auth,
         db.ChangeTracker.Clear();
         var newTotal = await db.PlanWeekHours.Where(w => w.PlanLineItemId == lineId).SumAsync(w => w.Hours);
         audit.Record(nameof(PlanLineItem), lineId.ToString(), "hours",
-            $"{oldTotal:0.##}h", $"{newTotal:0.##}h", result.User!.Oid);
+            $"{oldTotal:0.##}h", WithReason($"{newTotal:0.##}h", body.Reason), result.User!.Oid);
         await booking.SyncBookings(id);
         await db.SaveChangesAsync();
         return new OkObjectResult(await GetDto(id));
@@ -536,6 +563,18 @@ public class PricingPlansFunctions(CapacityDbContext db, RequestAuthorizer auth,
 
         return null;
     }
+
+    /// <summary>
+    /// Post-win rolling-forecast changes (staffing swaps, roll-offs, change
+    /// orders) must carry a reason so the audit trail explains them (DT-01a).
+    /// </summary>
+    private static IActionResult? RequireReason(PricingPlan plan, string? reason) =>
+        plan.Status == PlanStatus.ClosedWon && string.IsNullOrWhiteSpace(reason)
+            ? new BadRequestObjectResult(new { error = "A reason (e.g. staffing change or change order) is required for changes to a Closed/Won engagement." })
+            : null;
+
+    private static string WithReason(string value, string? reason) =>
+        string.IsNullOrWhiteSpace(reason) ? value : $"{value} — {reason.Trim()}";
 
     private static void ApplyLine(PlanLineItem line, UpsertPlanLineItemRequest body)
     {

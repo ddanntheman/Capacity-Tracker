@@ -201,14 +201,19 @@ export default function ProjectDetailPage() {
             )}
           </div>
         </div>
-        {canEdit && (
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setAddRoleOpen(true)}>
-              Add unnamed role
-            </Button>
-            <Button onClick={() => setStaffOpen(true)}>Staff person</Button>
-          </div>
-        )}
+        <div className="flex gap-2">
+          <Button variant="outline" asChild>
+            <Link to={`/projects/${project.projectId}/delivery`}>Delivery & ETC</Link>
+          </Button>
+          {canEdit && (
+            <>
+              <Button variant="outline" onClick={() => setAddRoleOpen(true)}>
+                Add unnamed role
+              </Button>
+              <Button onClick={() => setStaffOpen(true)}>Staff person</Button>
+            </>
+          )}
+        </div>
       </div>
 
       <Card>

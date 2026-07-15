@@ -20,7 +20,12 @@ import type {
   EngagementDocument,
   PlanPhasing,
   ProjectBaseline,
+  ProjectDelivery,
   ProjectStatus,
+  ChangeOrder,
+  RecoverableExpense,
+  EtcOverrideInfo,
+  WipUploadResult,
   RangeAllocationWriteResult,
   UtilizationResponse,
 } from "./types";
@@ -171,10 +176,21 @@ export const api = {
     request<PricingPlan>(`/plans/${planId}/lines`, { method: "POST", body: JSON.stringify(body) }),
   updatePlanLine: (planId: string, lineId: string, body: PlanLineWrite) =>
     request<PricingPlan>(`/plans/${planId}/lines/${lineId}`, { method: "PUT", body: JSON.stringify(body) }),
-  deletePlanLine: (planId: string, lineId: string) =>
-    request<PricingPlan>(`/plans/${planId}/lines/${lineId}`, { method: "DELETE" }),
-  setPlanLineHours: (planId: string, lineId: string, weekHours: { weekStart: string; hours: number }[]) =>
-    request<PricingPlan>(`/plans/${planId}/lines/${lineId}/hours`, { method: "PUT", body: JSON.stringify({ weekHours }) }),
+  deletePlanLine: (planId: string, lineId: string, reason?: string) =>
+    request<PricingPlan>(
+      `/plans/${planId}/lines/${lineId}${reason ? `?reason=${encodeURIComponent(reason)}` : ""}`,
+      { method: "DELETE" },
+    ),
+  setPlanLineHours: (
+    planId: string,
+    lineId: string,
+    weekHours: { weekStart: string; hours: number }[],
+    reason?: string,
+  ) =>
+    request<PricingPlan>(`/plans/${planId}/lines/${lineId}/hours`, {
+      method: "PUT",
+      body: JSON.stringify({ weekHours, reason: reason ?? null }),
+    }),
   planEconomics: (id: string) => request<PlanEconomics>(`/plans/${id}/economics`),
 
   getPlanPhasing: (id: string) => request<PlanPhasing>(`/plans/${id}/phasing`),
@@ -216,6 +232,39 @@ export const api = {
   ) => request<RevenueSetup>(`/projects/${projectId}/revenue-setup`, { method: "PUT", body: JSON.stringify(body) }),
   projectRevenue: (projectId: string) => request<ProjectRevenueMonth[]>(`/projects/${projectId}/revenue`),
 
+  getProjectDelivery: (projectId: string) => request<ProjectDelivery>(`/projects/${projectId}/delivery`),
+  saveProjectActuals: (
+    projectId: string,
+    entries: { planLineItemId: string; weekStart: string; hours: number; hardCost?: number | null }[],
+  ) =>
+    request<ProjectDelivery>(`/projects/${projectId}/delivery/actuals`, {
+      method: "PUT",
+      body: JSON.stringify({ entries }),
+    }),
+  uploadWipReport: (projectId: string, csv: string) =>
+    request<WipUploadResult>(`/projects/${projectId}/delivery/wip`, {
+      method: "POST",
+      body: JSON.stringify({ csv }),
+    }),
+  createChangeOrder: (
+    projectId: string,
+    body: { title: string; notes: string | null; deltaHours: number; deltaFees: number; engagementDocumentId?: string | null },
+  ) => request<ChangeOrder>(`/projects/${projectId}/change-orders`, { method: "POST", body: JSON.stringify(body) }),
+  approveChangeOrder: (projectId: string, orderId: string) =>
+    request<ChangeOrder>(`/projects/${projectId}/change-orders/${orderId}/approve`, { method: "POST" }),
+  deleteChangeOrder: (projectId: string, orderId: string) =>
+    request<void>(`/projects/${projectId}/change-orders/${orderId}`, { method: "DELETE" }),
+  createExpense: (
+    projectId: string,
+    body: { periodStart: string; vendor: string; amount: number; notes: string | null },
+  ) => request<RecoverableExpense>(`/projects/${projectId}/expenses`, { method: "POST", body: JSON.stringify(body) }),
+  deleteExpense: (projectId: string, expenseId: string) =>
+    request<void>(`/projects/${projectId}/expenses/${expenseId}`, { method: "DELETE" }),
+  setEtcOverride: (projectId: string, body: { hours: number; fees: number; justification: string }) =>
+    request<EtcOverrideInfo>(`/projects/${projectId}/etc-override`, { method: "PUT", body: JSON.stringify(body) }),
+  clearEtcOverride: (projectId: string) =>
+    request<void>(`/projects/${projectId}/etc-override`, { method: "DELETE" }),
+
   auditLog: (params: { from?: string; to?: string; entityType?: string; entityId?: string; take?: number }) => {
     const qs = new URLSearchParams();
     if (params.from) qs.set("from", params.from);
@@ -238,6 +287,7 @@ export interface PlanLineWrite {
   billRateOverride: number | null;
   clientRate: number | null;
   sortOrder?: number | null;
+  reason?: string | null;
 }
 
 export type { ProjectStatus };

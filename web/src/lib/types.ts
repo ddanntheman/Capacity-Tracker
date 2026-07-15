@@ -293,6 +293,118 @@ export interface ProjectRevenueMonth {
   variance: number;
 }
 
+// Delivery tracking & ETC/EAC (DT-01..07, ETC-01..05)
+export interface DeliveryWeek {
+  weekStart: string;
+  forecastHours: number;
+  actualHours: number | null;
+  actualHardCost: number | null;
+  actualSource: string | null;
+}
+
+export interface DeliveryLine {
+  planLineItemId: string;
+  label: string;
+  organization: LineOrganization;
+  isNamed: boolean;
+  weeks: DeliveryWeek[];
+}
+
+export interface EtcLine {
+  planLineItemId: string;
+  label: string;
+  organization: LineOrganization;
+  forecastHours: number;
+  actualHours: number;
+  actualHardCost: number;
+  etcHours: number;
+  eacHours: number;
+}
+
+export interface EtcSummary {
+  actualHours: number;
+  actualFees: number;
+  actualCost: number;
+  derivedEtcHours: number;
+  derivedEtcFees: number;
+  derivedEtcCost: number;
+  overrideEtcHours: number | null;
+  overrideEtcFees: number | null;
+  eacHours: number;
+  eacFees: number;
+  eacCost: number;
+  eacMarginPct: number | null;
+  baselineHours: number;
+  originalTcv: number;
+  approvedChangeOrderHours: number;
+  approvedChangeOrderFees: number;
+  amendedBaselineHours: number;
+  amendedTcv: number;
+  hoursVariance: number;
+  feesVariance: number;
+  hoursOverrun: boolean;
+  feeOverrun: boolean;
+  marginErosion: boolean;
+  lines: EtcLine[];
+}
+
+export interface EtcOverrideInfo {
+  etcOverrideId: string;
+  hours: number;
+  fees: number;
+  justification: string;
+  createdAtUtc: string;
+  createdBy: string | null;
+}
+
+export interface ChangeOrder {
+  changeOrderId: string;
+  projectId: string;
+  title: string;
+  notes: string | null;
+  deltaHours: number;
+  deltaFees: number;
+  status: "draft" | "approved";
+  engagementDocumentId: string | null;
+  createdAtUtc: string;
+  createdBy: string | null;
+  approvedAtUtc: string | null;
+  approvedBy: string | null;
+}
+
+export interface RecoverableExpense {
+  recoverableExpenseEntryId: string;
+  projectId: string;
+  periodStart: string;
+  vendor: string;
+  amount: number;
+  notes: string | null;
+  enteredAtUtc: string;
+  enteredBy: string | null;
+}
+
+export interface WipUploadResult {
+  matchedRows: number;
+  unmatchedRows: number;
+  unmatched: string[];
+}
+
+export interface ProjectDelivery {
+  projectId: string;
+  pricingPlanId: string;
+  planStatus: PlanStatus;
+  startDate: string;
+  endDate: string;
+  lines: DeliveryLine[];
+  etc: EtcSummary;
+  override: EtcOverrideInfo | null;
+  changeOrders: ChangeOrder[];
+  expenses: RecoverableExpense[];
+  actualsStale: boolean;
+  lastActualEntryUtc: string | null;
+  zeroRevenueMonths: string[];
+}
+
 export interface AuditEntry {
   auditLogId: number;
   entityType: string;

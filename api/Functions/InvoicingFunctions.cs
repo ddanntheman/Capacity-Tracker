@@ -99,6 +99,85 @@ public class InvoicingFunctions(CapacityDbContext db, RequestAuthorizer auth, Au
         return new OkObjectResult(await BuildPeriod(plan, periodStart.Value, AvailablePeriods(plan)));
     }
 
+    [Function("DeleteProjectInvoice")]
+    public async Task<IActionResult> Delete(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "projects/{id:guid}/invoicing/{period}")] HttpRequest req, Guid id, string period)
+    {
+        var result = auth.Authorize(req, AppRoles.Editor);
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
+
+        var periodStart = ParsePeriod(period);
+        if (periodStart is null)
+        {
+            return new BadRequestObjectResult(new { error = "Period must be formatted as YYYY-MM." });
+        }
+
+        var plan = await LoadPlan(id);
+        if (plan is null)
+        {
+            return new NotFoundObjectResult(new { error = "No pricing plan found for this project." });
+        }
+
+        var record = await db.InvoiceRecords
+            .FirstOrDefaultAsync(r => r.ProjectId == id && r.PeriodStart == periodStart);
+        if (record is null)
+        {
+            return new NotFoundObjectResult(new { error = "No invoice captured for this period." });
+        }
+
+        db.InvoiceRecords.Remove(record);
+        audit.Record(nameof(InvoiceRecord), record.InvoiceRecordId.ToString(),
+            $"invoice {periodStart:yyyy-MM}",
+            $"{record.InvoicedAmount:C0} on {record.InvoiceDate:yyyy-MM-dd}", "deleted", result.User!.Oid);
+        await db.SaveChangesAsync();
+
+        return new OkObjectResult(await BuildPeriod(plan, periodStart.Value, AvailablePeriods(plan)));
+    }
+
+    [Function("GetInvoiceVarianceReport")]
+    public async Task<IActionResult> Variance(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "projects/{id:guid}/invoicing-variance")] HttpRequest req, Guid id)
+    {
+        var result = auth.Authorize(req, AppRoles.Viewer, AppRoles.Editor, AppRoles.Leadership);
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
+
+        var plan = await LoadPlan(id);
+        if (plan is null)
+        {
+            return new NotFoundObjectResult(new { error = "No pricing plan found for this project." });
+        }
+
+        var periods = AvailablePeriods(plan);
+        var rateCard = await db.RateCardEntries.AsNoTracking().ToListAsync();
+        var lineIds = plan.LineItems.Select(l => l.PlanLineItemId).ToList();
+        var actuals = await db.LineActuals.AsNoTracking()
+            .Where(a => lineIds.Contains(a.PlanLineItemId))
+            .ToListAsync();
+        var setup = await db.RevenueSetups.AsNoTracking().FirstOrDefaultAsync(s => s.ProjectId == plan.ProjectId);
+        var feeStructure = setup?.FeeStructure ?? plan.PricingModel;
+        var scheduled = await db.RevenuePhases.AsNoTracking()
+            .Where(r => r.PricingPlanId == plan.PricingPlanId && r.Layer == RevenueLayer.Forecast)
+            .GroupBy(r => r.PeriodStart)
+            .Select(g => new { Period = g.Key, Amount = g.Sum(r => r.Amount) })
+            .ToDictionaryAsync(g => g.Period, g => g.Amount);
+        var records = await db.InvoiceRecords.AsNoTracking()
+            .Where(r => r.ProjectId == id)
+            .ToListAsync();
+
+        var forecasts = periods
+            .Select(p => (p, InvoicingService.Compute(plan, rateCard, actuals, feeStructure,
+                setup?.Confirmed ?? false, scheduled.GetValueOrDefault(p), 0, null, p, periods).InvoiceAmount))
+            .ToList();
+
+        return new OkObjectResult(InvoiceVarianceService.Compute(id, feeStructure, forecasts, records));
+    }
+
     // ---- Helpers ----
 
     private async Task<InvoicePeriodDto> BuildPeriod(PricingPlan plan, DateOnly period, List<DateOnly> periods)

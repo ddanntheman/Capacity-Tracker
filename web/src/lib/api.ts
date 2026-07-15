@@ -28,6 +28,7 @@ import type {
   EtcOverrideInfo,
   WipUploadResult,
   InvoicePeriod,
+  InvoiceVarianceReport,
   FirmRollup,
   FirmTarget,
   RangeAllocationWriteResult,
@@ -275,6 +276,10 @@ export const api = {
     request<InvoicePeriod>(`/projects/${projectId}/invoicing${period ? `?period=${period}` : ""}`),
   captureInvoice: (projectId: string, period: string, body: { invoicedAmount: number; invoiceDate: string | null; notes: string | null }) =>
     request<InvoicePeriod>(`/projects/${projectId}/invoicing/${period}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteInvoice: (projectId: string, period: string) =>
+    request<InvoicePeriod>(`/projects/${projectId}/invoicing/${period}`, { method: "DELETE" }),
+  getInvoiceVariance: (projectId: string) =>
+    request<InvoiceVarianceReport>(`/projects/${projectId}/invoicing-variance`),
 
   getFirmRollup: (from?: string, to?: string) => {
     const qs = new URLSearchParams();
@@ -286,6 +291,8 @@ export const api = {
   listFirmTargets: () => request<FirmTarget[]>("/rollups/targets"),
   upsertFirmTargets: (targets: { periodStart: string; revenueTarget: number; netFeesTarget: number }[]) =>
     request<FirmTarget[]>("/rollups/targets", { method: "PUT", body: JSON.stringify({ targets }) }),
+  deleteFirmTarget: (period: string) =>
+    request<FirmTarget[]>(`/rollups/targets/${period}`, { method: "DELETE" }),
 
   auditLog: (params: { from?: string; to?: string; entityType?: string; entityId?: string; take?: number }) => {
     const qs = new URLSearchParams();

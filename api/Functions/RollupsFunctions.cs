@@ -193,6 +193,38 @@ public class RollupsFunctions(CapacityDbContext db, RequestAuthorizer auth, Audi
         return new OkObjectResult(targets.Select(FirmTargetDto.From).ToList());
     }
 
+    [Function("DeleteFirmTarget")]
+    public async Task<IActionResult> DeleteTarget(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "rollups/targets/{period}")] HttpRequest req, string period)
+    {
+        var result = auth.Authorize(req, AppRoles.Leadership);
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
+
+        var periodStart = ParsePeriod(period);
+        if (periodStart is null)
+        {
+            return new BadRequestObjectResult(new { error = "Period must be formatted as YYYY-MM." });
+        }
+
+        var existing = await db.FirmTargets.FirstOrDefaultAsync(t => t.PeriodStart == periodStart);
+        if (existing is null)
+        {
+            return new NotFoundObjectResult(new { error = "No target exists for this period." });
+        }
+
+        db.FirmTargets.Remove(existing);
+        audit.Record(nameof(FirmTarget), existing.FirmTargetId.ToString(),
+            $"target {periodStart:yyyy-MM}",
+            $"{existing.RevenueTarget:C0} / {existing.NetFeesTarget:C0}", "deleted", result.User!.Oid);
+        await db.SaveChangesAsync();
+
+        var targets = await db.FirmTargets.AsNoTracking().OrderBy(t => t.PeriodStart).ToListAsync();
+        return new OkObjectResult(targets.Select(FirmTargetDto.From).ToList());
+    }
+
     private static DateOnly? ParsePeriod(string? value) =>
         !string.IsNullOrWhiteSpace(value) && DateOnly.TryParse($"{value}-01", out var parsed)
             ? parsed

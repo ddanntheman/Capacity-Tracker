@@ -484,6 +484,28 @@ export interface InvoicePeriod {
   availablePeriods: string[];
 }
 
+export interface InvoiceVarianceRow {
+  periodStart: string;
+  forecastAmount: number;
+  invoicedAmount: number | null;
+  invoiceDate: string | null;
+  notes: string | null;
+  variance: number | null;
+  variancePct: number | null;
+  cumulativeForecast: number;
+  cumulativeInvoiced: number;
+  cumulativeVariance: number;
+}
+
+export interface InvoiceVarianceReport {
+  projectId: string;
+  feeStructure: string;
+  rows: InvoiceVarianceRow[];
+  totalForecast: number;
+  totalInvoiced: number;
+  totalVariance: number;
+}
+
 export interface RollupMonth {
   periodStart: string;
   originalPlan: number;

@@ -39,6 +39,11 @@ The deployed Static Web App (https://salmon-desert-092eaec10.7.azurestaticapps.n
 - Raw SQL in the API might reference wrong table names (e.g. `[ActualHours]` vs the actual `[Actuals]` table) — if an endpoint 500s with "Invalid object name", check func logs (/tmp/func.log) and compare against `CapacityDbContext` DbSet table mappings.
 - Cleanup via SQL works with `sqlcmd -S sql-cap-dev-tfoiku.database.windows.net -d capacity --authentication-method ActiveDirectoryDefault -Q "..."` (uses the az session).
 - Data written during testing goes to the real dev DB — record what you changed (allocations, rates, actuals) in the test report so it can be reverted.
+- Over-capacity warnings are transient toasts — capture a screenshot immediately after Save, and add a recording annotation the moment the toast appears; the toast text is also readable from the page HTML dump if the screenshot misses it.
+- The range staffing dialog ("Staff <person>") numeric inputs (Weeks, Hrs/week) are clamped controlled inputs: typing can momentarily produce clamped values (e.g. appending a digit yields 41→52). Set values by selecting all text first, or via a native value setter + `input` event in the console, then verify the visible value before saving.
+- To revert a temporary staffing-range allocation via the UI, reopen the same Staff dialog with the identical project/start week/weeks and save with Hrs/week = 0, then verify via `GET /api/allocations?personId=…&weekStart=…&weeks=1` returns `[]`.
+- Holiday-capacity checks: use Labor Day week (Mon Sep 7 2026 → 32h cap) with Aug 31 as the 40h control week; the person profile shows a "Holiday (32h cap)" badge and the tracker computes Available from the reduced capacity.
+- The People edit dialog's Save button sits below the fold — scroll the dialog's inner container (scroll at the dialog center, may take two scrolls) until Save is visible before clicking; clicking a tag's × removes it (aim at the × glyph, not the badge center).
 
 ## Live site failing but local passing? Check for stale deployment
 - The GitHub "Deploy Dev" workflow only triggers on pushes to `develop`, but merges land on the default branch — the live dev site can silently fall behind merged code.

@@ -597,6 +597,27 @@ public record InvoicePeriodDto(
 
 public record CaptureInvoiceRequest(decimal InvoicedAmount, DateOnly? InvoiceDate, string? Notes);
 
+// Engagement invoice variance report (INV-04/05)
+public record InvoiceVarianceRowDto(
+    DateOnly PeriodStart,
+    decimal ForecastAmount,
+    decimal? InvoicedAmount,
+    DateOnly? InvoiceDate,
+    string? Notes,
+    decimal? Variance,
+    decimal? VariancePct,
+    decimal CumulativeForecast,
+    decimal CumulativeInvoiced,
+    decimal CumulativeVariance);
+
+public record InvoiceVarianceReportDto(
+    Guid ProjectId,
+    string FeeStructure,
+    List<InvoiceVarianceRowDto> Rows,
+    decimal TotalForecast,
+    decimal TotalInvoiced,
+    decimal TotalVariance);
+
 // Firm/practice rollups (RU-01..06)
 public record RollupMonthDto(
     DateOnly PeriodStart,

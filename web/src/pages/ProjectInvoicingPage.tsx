@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Download } from "lucide-react";
+import { ArrowLeft, Download, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuth } from "@/auth";
@@ -81,7 +81,11 @@ export default function ProjectInvoicingPage() {
 
       <InvoiceHoursCard invoice={invoice} />
       <ReconciliationCard invoice={invoice} periodKey={periodKey} />
-      <CaptureCard invoice={invoice} periodKey={periodKey} canEdit={canEdit} onChanged={() => void qc.invalidateQueries({ queryKey: ["invoicing", id] })} />
+      <CaptureCard invoice={invoice} periodKey={periodKey} canEdit={canEdit} onChanged={() => {
+        void qc.invalidateQueries({ queryKey: ["invoicing", id] });
+        void qc.invalidateQueries({ queryKey: ["invoice-variance", id] });
+      }} />
+      <VarianceCard projectId={id} />
     </div>
   );
 }
@@ -256,6 +260,17 @@ function ReconciliationCard({ invoice, periodKey }: { invoice: InvoicePeriod; pe
 /** Actual invoiced amount + variance vs forecast (INV-04). */
 function CaptureCard({ invoice, periodKey, canEdit, onChanged }: { invoice: InvoicePeriod; periodKey: string; canEdit: boolean; onChanged: () => void }) {
   const [open, setOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const remove = useMutation({
+    mutationFn: () => api.deleteInvoice(invoice.projectId, periodKey),
+    onSuccess: () => {
+      toast.success("Invoice record deleted");
+      setConfirmDelete(false);
+      onChanged();
+    },
+    onError: () => toast.error("Failed to delete invoice record"),
+  });
 
   return (
     <Card>
@@ -265,9 +280,16 @@ function CaptureCard({ invoice, periodKey, canEdit, onChanged }: { invoice: Invo
           <CardDescription>Actual invoiced amount, invoice date, and variance vs the forecast invoice.</CardDescription>
         </div>
         {canEdit && (
-          <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
-            {invoice.invoicedAmount != null ? "Update invoice" : "Record invoice"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
+              {invoice.invoicedAmount != null ? "Update invoice" : "Record invoice"}
+            </Button>
+            {invoice.invoicedAmount != null && (
+              <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(true)}>
+                <Trash2 className="size-4" />
+              </Button>
+            )}
+          </div>
         )}
       </CardHeader>
       <CardContent>
@@ -286,6 +308,24 @@ function CaptureCard({ invoice, periodKey, canEdit, onChanged }: { invoice: Invo
         )}
         {invoice.invoiceNotes && <p className="mt-2 text-sm text-[var(--color-muted-foreground)]">{invoice.invoiceNotes}</p>}
       </CardContent>
+      {confirmDelete && (
+        <Dialog open onOpenChange={(o) => !o && setConfirmDelete(false)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete invoice record — {monthLabel(invoice.periodStart)}</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-[var(--color-muted-foreground)]">
+              This removes the captured invoice ({money(invoice.invoicedAmount ?? 0)}) for this period. The deletion is audited.
+            </p>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+              <Button variant="destructive" onClick={() => remove.mutate()} disabled={remove.isPending}>
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
       {open && (
         <CaptureDialog
           invoice={invoice}
@@ -348,6 +388,104 @@ function CaptureDialog({ invoice, periodKey, onClose, onSaved }: { invoice: Invo
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** All billing periods: forecast vs captured invoice with cumulative position (INV-04/05). */
+function VarianceCard({ projectId }: { projectId: string }) {
+  const { data: report } = useQuery({
+    queryKey: ["invoice-variance", projectId],
+    queryFn: () => api.getInvoiceVariance(projectId),
+    retry: false,
+  });
+
+  if (!report) return null;
+
+  const exportCsv = () =>
+    downloadCsv(
+      "invoice-variance.csv",
+      ["Period", "Forecast", "Invoiced", "Invoice date", "Variance", "Variance %", "Cumulative forecast", "Cumulative invoiced", "Cumulative variance", "Notes"],
+      [
+        ...report.rows.map((r) => [
+          r.periodStart.slice(0, 7),
+          r.forecastAmount,
+          r.invoicedAmount ?? "",
+          r.invoiceDate ?? "",
+          r.variance ?? "",
+          r.variancePct ?? "",
+          r.cumulativeForecast,
+          r.cumulativeInvoiced,
+          r.cumulativeVariance,
+          r.notes ?? "",
+        ]),
+        ["Total", report.totalForecast, report.totalInvoiced, "", report.totalVariance, "", "", "", "", ""],
+      ],
+    );
+
+  const signed = (n: number) => `${n >= 0 ? "+" : ""}${money(n)}`;
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between space-y-0">
+        <div>
+          <CardTitle className="text-base">Invoice variance — all periods</CardTitle>
+          <CardDescription>Forecast invoice vs captured invoice per billing period; cumulative variance counts captured periods only.</CardDescription>
+        </div>
+        <Button size="sm" variant="outline" onClick={exportCsv}>
+          <Download className="mr-1 size-3.5" /> Export CSV
+        </Button>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Period</TableHead>
+                <TableHead className="text-right">Forecast</TableHead>
+                <TableHead className="text-right">Invoiced</TableHead>
+                <TableHead>Invoice date</TableHead>
+                <TableHead className="text-right">Variance</TableHead>
+                <TableHead className="text-right">Variance %</TableHead>
+                <TableHead className="text-right">Cum. forecast</TableHead>
+                <TableHead className="text-right">Cum. invoiced</TableHead>
+                <TableHead className="text-right">Cum. variance</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {report.rows.map((r) => (
+                <TableRow key={r.periodStart}>
+                  <TableCell>{monthLabel(r.periodStart)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{money(r.forecastAmount)}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {r.invoicedAmount != null ? money(r.invoicedAmount) : <span className="text-[var(--color-muted-foreground)]">—</span>}
+                  </TableCell>
+                  <TableCell>{r.invoiceDate ? new Date(`${r.invoiceDate}T00:00:00`).toLocaleDateString() : "—"}</TableCell>
+                  <TableCell className={`text-right tabular-nums ${r.variance != null && r.variance < 0 ? "text-red-600" : ""}`}>
+                    {r.variance != null ? signed(r.variance) : "—"}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{r.variancePct != null ? `${r.variancePct}%` : "—"}</TableCell>
+                  <TableCell className="text-right tabular-nums">{money(r.cumulativeForecast)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{money(r.cumulativeInvoiced)}</TableCell>
+                  <TableCell className={`text-right tabular-nums ${r.cumulativeVariance < 0 ? "text-red-600" : ""}`}>
+                    {signed(r.cumulativeVariance)}
+                  </TableCell>
+                </TableRow>
+              ))}
+              <TableRow className="font-medium">
+                <TableCell>Total</TableCell>
+                <TableCell className="text-right tabular-nums">{money(report.totalForecast)}</TableCell>
+                <TableCell className="text-right tabular-nums">{money(report.totalInvoiced)}</TableCell>
+                <TableCell />
+                <TableCell className={`text-right tabular-nums ${report.totalVariance < 0 ? "text-red-600" : ""}`}>
+                  {signed(report.totalVariance)}
+                </TableCell>
+                <TableCell colSpan={4} />
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

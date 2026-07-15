@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, Download, Target } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, Target, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuth } from "@/auth";
@@ -297,6 +297,7 @@ function EngagementRow({ engagement: e }: { engagement: RollupEngagement }) {
 
 /** Finance-maintained monthly revenue / net-fee targets (RU-04), leadership only. */
 function TargetsDialog({ rollup, onClose, onSaved }: { rollup: FirmRollup; onClose: () => void; onSaved: () => void }) {
+  const qc = useQueryClient();
   const [values, setValues] = useState(() =>
     Object.fromEntries(
       rollup.months.map((m) => [m.periodStart, { revenue: String(m.revenueTarget ?? ""), netFees: String(m.netFeesTarget ?? "") }]),
@@ -321,6 +322,16 @@ function TargetsDialog({ rollup, onClose, onSaved }: { rollup: FirmRollup; onClo
     onError: () => toast.error("Failed to save targets"),
   });
 
+  const remove = useMutation({
+    mutationFn: (period: string) => api.deleteFirmTarget(period.slice(0, 7)),
+    onSuccess: (_, period) => {
+      toast.success("Target cleared");
+      setValues((v) => ({ ...v, [period]: { revenue: "", netFees: "" } }));
+      void qc.invalidateQueries({ queryKey: ["rollup"] });
+    },
+    onError: () => toast.error("Failed to clear target"),
+  });
+
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg">
@@ -329,7 +340,7 @@ function TargetsDialog({ rollup, onClose, onSaved }: { rollup: FirmRollup; onClo
         </DialogHeader>
         <div className="max-h-[60vh] space-y-2 overflow-y-auto">
           {rollup.months.map((m) => (
-            <div key={m.periodStart} className="grid grid-cols-3 items-center gap-2">
+            <div key={m.periodStart} className="grid grid-cols-[1fr_2fr_2fr_auto] items-center gap-2">
               <span className="text-sm">{monthLabel(m.periodStart)}</span>
               <Input
                 type="number"
@@ -345,6 +356,15 @@ function TargetsDialog({ rollup, onClose, onSaved }: { rollup: FirmRollup; onClo
                 value={values[m.periodStart].netFees}
                 onChange={(e) => setValues((v) => ({ ...v, [m.periodStart]: { ...v[m.periodStart], netFees: e.target.value } }))}
               />
+              <Button
+                variant="ghost"
+                size="sm"
+                title="Clear this month's target"
+                disabled={remove.isPending || (m.revenueTarget == null && m.netFeesTarget == null)}
+                onClick={() => remove.mutate(m.periodStart)}
+              >
+                <Trash2 className="size-4" />
+              </Button>
             </div>
           ))}
         </div>

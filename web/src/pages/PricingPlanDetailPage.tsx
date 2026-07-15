@@ -42,7 +42,7 @@ export default function PricingPlanDetailPage() {
   const { data: econ } = useQuery({
     queryKey: ["plan-economics", id, plan?.updatedAtUtc],
     queryFn: () => api.planEconomics(id),
-    enabled: !!plan && hasRole("editor"),
+    enabled: !!plan && hasRole("editor", "leadership"),
   });
   const { data: people = [] } = useQuery({ queryKey: ["people", false], queryFn: () => api.listPeople(false) });
   const { data: practices = [] } = useQuery({ queryKey: ["practices"], queryFn: () => api.listPractices() });

@@ -358,6 +358,8 @@ public class RevenueFunctions(CapacityDbContext db, RequestAuthorizer auth, Audi
             return new NotFoundResult();
         }
 
+        var extractions = await db.TaskOrderExtractions.Where(t => t.EngagementDocumentId == docId).ToListAsync();
+        db.TaskOrderExtractions.RemoveRange(extractions);
         db.EngagementDocuments.Remove(doc);
         audit.Record(nameof(EngagementDocument), docId.ToString(), "deleted", doc.FileName, null, result.User!.Oid);
         await db.SaveChangesAsync();

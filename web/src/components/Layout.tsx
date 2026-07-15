@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, Users, Briefcase, ScrollText, Gauge, ClipboardList, Building2, LineChart, Armchair, Network, Sparkles, Search } from "lucide-react";
+import { LayoutDashboard, Users, Briefcase, ScrollText, Gauge, ClipboardList, Building2, LineChart, Armchair, Network, Sparkles, Search, Calculator, BadgeDollarSign } from "lucide-react";
 import { authLinks, useAuth } from "@/auth";
 import { CommandPalette } from "@/components/CommandPalette";
 import type { AppRole } from "@/lib/types";
@@ -22,6 +22,8 @@ const navItems: NavItem[] = [
   { to: "/executive-summary", label: "Executive Summary", icon: <LineChart className="size-4" />, roles: ["leadership"] },
   { to: "/bench", label: "Bench", icon: <Armchair className="size-4" />, roles: ["editor", "leadership"] },
   { to: "/recommend", label: "Recommendations", icon: <Sparkles className="size-4" />, roles: ["editor", "leadership"] },
+  { to: "/plans", label: "Pricing Plans", icon: <Calculator className="size-4" />, roles: ["editor", "leadership"] },
+  { to: "/ratecard", label: "Rate Card", icon: <BadgeDollarSign className="size-4" />, roles: ["editor", "leadership"] },
   { to: "/people", label: "People", icon: <Users className="size-4" />, roles: ["viewer", "editor", "leadership"] },
   { to: "/practices", label: "Practices", icon: <Network className="size-4" />, roles: ["viewer", "editor", "leadership"] },
   { to: "/clients", label: "Clients", icon: <Building2 className="size-4" />, roles: ["viewer", "editor", "leadership"] },

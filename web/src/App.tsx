@@ -18,6 +18,9 @@ import BenchPage from "@/pages/BenchPage";
 import RecommendationsPage from "@/pages/RecommendationsPage";
 import PracticesPage from "@/pages/PracticesPage";
 import PracticeDetailPage from "@/pages/PracticeDetailPage";
+import PricingPlansPage from "@/pages/PricingPlansPage";
+import PricingPlanDetailPage from "@/pages/PricingPlanDetailPage";
+import RateCardPage from "@/pages/RateCardPage";
 
 export default function App() {
   const { me, isLoading, error } = useAuth();
@@ -147,6 +150,30 @@ export default function App() {
           element={
             <RequireRole roles={["viewer", "editor", "leadership"]}>
               <PracticeDetailPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/plans"
+          element={
+            <RequireRole roles={["editor", "leadership"]}>
+              <PricingPlansPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/plans/:id"
+          element={
+            <RequireRole roles={["editor", "leadership"]}>
+              <PricingPlanDetailPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/ratecard"
+          element={
+            <RequireRole roles={["editor", "leadership"]}>
+              <RateCardPage />
             </RequireRole>
           }
         />

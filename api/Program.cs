@@ -37,5 +37,6 @@ builder.Services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
 builder.Services.AddScoped<RequestAuthorizer>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<PlanBookingService>();
+builder.Services.AddScoped<BaselineService>();
 
 builder.Build().Run();

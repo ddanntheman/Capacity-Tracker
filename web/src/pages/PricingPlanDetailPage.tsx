@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Plus, Trash2, Trophy } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiError, type PlanLineWrite } from "@/lib/api";
 import { useAuth } from "@/auth";
-import type { PlanLineItem, PricingPlan } from "@/lib/types";
+import type { PlanLineItem, PricingPlan, RevenuePhase } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,6 +48,7 @@ export default function PricingPlanDetailPage() {
   const { data: practices = [] } = useQuery({ queryKey: ["practices"], queryFn: () => api.listPractices() });
 
   const [addingLine, setAddingLine] = useState(false);
+  const [converting, setConverting] = useState(false);
 
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ["plan", id] });
@@ -136,9 +137,16 @@ export default function PricingPlanDetailPage() {
           </div>
         </div>
         {canEdit && plan.status !== "closedWon" && (
-          <Button variant="outline" size="sm" onClick={() => deletePlan.mutate()}>
-            <Trash2 className="size-4" /> Delete plan
-          </Button>
+          <div className="flex gap-2">
+            {hasRole("leadership") && plan.status === "activePursuit" && (
+              <Button size="sm" onClick={() => setConverting(true)}>
+                <Trophy className="size-4" /> Convert to Closed/Won
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={() => deletePlan.mutate()}>
+              <Trash2 className="size-4" /> Delete plan
+            </Button>
+          </div>
         )}
       </div>
 
@@ -359,6 +367,21 @@ export default function PricingPlanDetailPage() {
         </CardContent>
       </Card>
 
+      {hasRole("editor", "leadership") && <PhasingCard planId={id} won={plan.status === "closedWon"} canEdit={canEdit && plan.status !== "closedWon"} />}
+
+      {converting && (
+        <ConvertDialog
+          planId={id}
+          onClose={() => setConverting(false)}
+          onConverted={() => {
+            setConverting(false);
+            invalidate();
+            void qc.invalidateQueries({ queryKey: ["plan-phasing", id] });
+            void qc.invalidateQueries({ queryKey: ["projects"] });
+          }}
+        />
+      )}
+
       {addingLine && (
         <LineDialog
           plan={plan}
@@ -370,6 +393,175 @@ export default function PricingPlanDetailPage() {
         />
       )}
     </div>
+  );
+}
+
+/**
+ * Monthly revenue phasing (RS-05/06/07): the editable forecast layer next to
+ * the immutable Original Plan layer locked at win. Inferred proposals are
+ * marked until the EM saves an explicit phasing, and the total must tie to
+ * TCV before the pursuit can convert (CW-03).
+ */
+function PhasingCard({ planId, won, canEdit }: { planId: string; won: boolean; canEdit: boolean }) {
+  const qc = useQueryClient();
+  const { data: phasing } = useQuery({
+    queryKey: ["plan-phasing", planId],
+    queryFn: () => api.getPlanPhasing(planId),
+  });
+  const [draft, setDraft] = useState<Record<string, string>>({});
+
+  const save = useMutation({
+    mutationFn: (phases: RevenuePhase[]) => api.savePlanPhasing(planId, phases),
+    onSuccess: () => {
+      toast.success("Revenue phasing saved");
+      setDraft({});
+      void qc.invalidateQueries({ queryKey: ["plan-phasing", planId] });
+    },
+    onError: (e) => {
+      const body = e instanceof ApiError ? (e.body as { error?: string } | null) : null;
+      toast.error(body?.error ?? "Failed to save phasing");
+    },
+  });
+
+  if (!phasing) return null;
+
+  const original = new Map(phasing.originalPlan.map((p) => [p.periodStart, p.amount]));
+  const rows = phasing.forecast.map((p) => ({
+    ...p,
+    amount: draft[p.periodStart] !== undefined ? Number(draft[p.periodStart]) || 0 : p.amount,
+  }));
+  const total = rows.reduce((s, r) => s + r.amount, 0);
+  const tiesOut = Math.abs(total - phasing.tcv) <= 0.5;
+  const dirty = Object.keys(draft).length > 0;
+  const inferred = phasing.forecast.some((p) => p.isInferred);
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between space-y-0">
+        <CardTitle className="text-base">Monthly revenue phasing</CardTitle>
+        <div className="flex items-center gap-2">
+          {inferred && <Badge variant="outline">Inferred — confirm by saving</Badge>}
+          <Badge variant={tiesOut ? "ok" : "warn"}>
+            {tiesOut ? "Ties to TCV" : `Off by ${money(total - phasing.tcv)}`}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Month</TableHead>
+              <TableHead className="text-right">Forecast ($)</TableHead>
+              {won && <TableHead className="text-right">Original plan ($)</TableHead>}
+              {won && <TableHead className="text-right">Variance</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row) => {
+              const orig = original.get(row.periodStart) ?? 0;
+              return (
+                <TableRow key={row.periodStart}>
+                  <TableCell>{row.periodStart.slice(0, 7)}</TableCell>
+                  <TableCell className="p-1 text-right">
+                    {canEdit ? (
+                      <Input
+                        type="number"
+                        min={0}
+                        className="ml-auto h-8 w-32 text-right"
+                        value={draft[row.periodStart] ?? String(row.amount)}
+                        onChange={(e) => setDraft((d) => ({ ...d, [row.periodStart]: e.target.value }))}
+                      />
+                    ) : (
+                      <span className="tabular-nums">{money(row.amount)}</span>
+                    )}
+                  </TableCell>
+                  {won && <TableCell className="text-right tabular-nums">{money(orig)}</TableCell>}
+                  {won && (
+                    <TableCell
+                      className={`text-right tabular-nums ${
+                        row.amount - orig > 0 ? "text-[var(--color-ok)]" : row.amount - orig < 0 ? "text-[var(--color-danger)]" : ""
+                      }`}
+                    >
+                      {money(row.amount - orig)}
+                    </TableCell>
+                  )}
+                </TableRow>
+              );
+            })}
+            <TableRow>
+              <TableCell className="font-semibold">Total</TableCell>
+              <TableCell className="text-right font-semibold tabular-nums">
+                {money(total)} <span className="font-normal text-[var(--color-muted-foreground)]">/ TCV {money(phasing.tcv)}</span>
+              </TableCell>
+              {won && (
+                <TableCell className="text-right font-semibold tabular-nums">
+                  {money(phasing.originalPlan.reduce((s, p) => s + p.amount, 0))}
+                </TableCell>
+              )}
+              {won && <TableCell />}
+            </TableRow>
+          </TableBody>
+        </Table>
+        {canEdit && (
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              disabled={(!dirty && !inferred) || save.isPending}
+              onClick={() => save.mutate(rows.map((r) => ({ periodStart: r.periodStart, amount: r.amount, isInferred: false })))}
+            >
+              Save phasing
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Authorized win conversion (CW-01..05): final pricing confirmation, then
+ * the plan locks as the immutable Original Plan and pipeline bookings become
+ * committed.
+ */
+function ConvertDialog({ planId, onClose, onConverted }: { planId: string; onClose: () => void; onConverted: () => void }) {
+  const convert = useMutation({
+    mutationFn: () => api.convertPlan(planId),
+    onSuccess: (r) => {
+      toast.success(`Converted to Closed/Won — TCV ${money(r.tcv)} across ${r.months} month(s)`);
+      onConverted();
+    },
+    onError: (e) => {
+      const body = e instanceof ApiError ? (e.body as { error?: string } | null) : null;
+      toast.error(body?.error ?? "Failed to convert");
+    },
+  });
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Convert to Closed/Won</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-2 text-sm">
+          <p>By converting, you confirm the final pricing plan (hours, rates, fees). This will:</p>
+          <ul className="list-disc space-y-1 pl-5 text-[var(--color-muted-foreground)]">
+            <li>lock the plan as the immutable Original Plan baseline;</li>
+            <li>lock monthly revenue phasing (must tie to TCV);</li>
+            <li>reclassify named-resource hours from Pipeline to Committed;</li>
+            <li>activate engagement financials and the revenue forecast.</li>
+          </ul>
+          <p>Corrections afterwards require a logged, authorized re-baseline.</p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={() => convert.mutate()} disabled={convert.isPending}>
+            Confirm pricing & convert
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

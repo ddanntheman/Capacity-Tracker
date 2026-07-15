@@ -16,6 +16,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { InlineInput, InlineSelect } from "@/components/InlineEdit";
 import { matchesSearch, useSearchText, useUrlFilters } from "@/lib/urlFilters";
+import { currentWeekStart, weekRange } from "@/lib/weeks";
+import { overallUtilization, practiceWeeklyRollup, utilizationBand } from "@/lib/practiceUtilization";
+
+const HORIZON_WEEKS = 12;
 
 export default function PracticesPage() {
   const { hasRole } = useAuth();
@@ -30,6 +34,20 @@ export default function PracticesPage() {
 
   const { data: allPractices = [], isLoading } = useQuery({ queryKey: ["practices"], queryFn: () => api.listPractices() });
   const { data: people = [] } = useQuery({ queryKey: ["people", false], queryFn: () => api.listPeople(false) });
+  const { data: projects = [] } = useQuery({ queryKey: ["projects"], queryFn: () => api.listProjects() });
+
+  const start = currentWeekStart();
+  const weeks = weekRange(start, HORIZON_WEEKS);
+  const { data: allocations = [] } = useQuery({
+    queryKey: ["allocations", start, HORIZON_WEEKS],
+    queryFn: () => api.listAllocations(start, HORIZON_WEEKS),
+  });
+
+  const utilizationFor = (practice: Practice): number | null => {
+    const members = people.filter((p) => p.practice === practice.name && p.isActive);
+    if (members.length === 0) return null;
+    return overallUtilization(practiceWeeklyRollup(members, allocations, projects, weeks));
+  };
 
   const practices = allPractices.filter(
     (p) =>
@@ -99,6 +117,7 @@ export default function PracticesPage() {
                   <TableHead>Lead</TableHead>
                   <TableHead className="text-right">Default target %</TableHead>
                   <TableHead className="text-right">Headcount</TableHead>
+                  <TableHead className="text-right">Utilization (12w)</TableHead>
                   <TableHead>Status</TableHead>
                   {canEdit && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
@@ -149,6 +168,9 @@ export default function PracticesPage() {
                       />
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{p.headcount}</TableCell>
+                    <TableCell className="text-right">
+                      <UtilizationCell utilization={utilizationFor(p)} target={p.defaultUtilizationTarget} />
+                    </TableCell>
                     <TableCell>
                       {p.isArchived ? <Badge variant="secondary">Archived</Badge> : <Badge variant="ok">Active</Badge>}
                     </TableCell>
@@ -172,7 +194,7 @@ export default function PracticesPage() {
                 ))}
                 {practices.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={canEdit ? 6 : 5} className="text-center text-[var(--color-muted-foreground)]">
+                    <TableCell colSpan={canEdit ? 7 : 6} className="text-center text-[var(--color-muted-foreground)]">
                       No practices yet.
                     </TableCell>
                   </TableRow>
@@ -197,6 +219,15 @@ export default function PracticesPage() {
         />
       )}
     </div>
+  );
+}
+
+function UtilizationCell({ utilization, target }: { utilization: number | null; target: number | null }) {
+  if (utilization == null) return <span className="text-[var(--color-muted-foreground)]">—</span>;
+  if (target == null) return <span className="tabular-nums">{utilization}%</span>;
+  const band = utilizationBand(utilization, target);
+  return (
+    <Badge variant={band === "ok" ? "ok" : band === "watch" ? "warn" : "over"}>{utilization}%</Badge>
   );
 }
 

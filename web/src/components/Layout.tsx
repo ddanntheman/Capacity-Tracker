@@ -46,7 +46,10 @@ export function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen md:grid md:grid-cols-[240px_1fr]">
       <aside className="border-b md:border-b-0 md:border-r bg-[var(--color-card)]">
-        <div className="flex h-14 items-center px-5 font-semibold">Capacity Tracker</div>
+        <div className="flex h-14 items-center gap-2.5 px-5 font-semibold">
+          <img src="/logo.png" alt="Capacity Tracker logo" className="h-8 w-8 rounded-full" />
+          Capacity Tracker
+        </div>
         <nav aria-label="Primary" className="flex gap-1 overflow-x-auto px-3 pb-3 md:flex-col md:overflow-visible">
           {items.map((item) => (
             <NavLink

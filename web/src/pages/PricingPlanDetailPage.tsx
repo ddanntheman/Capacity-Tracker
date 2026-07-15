@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { InlineInput, InlineSelect } from "@/components/InlineEdit";
+import { staffingConflicts } from "@/lib/staffingConflicts";
 import { PlanStatusBadge } from "@/pages/PricingPlansPage";
 import { useRanks } from "@/lib/ranks";
 
@@ -55,6 +56,7 @@ export default function PricingPlanDetailPage() {
     void qc.invalidateQueries({ queryKey: ["plan", id] });
     void qc.invalidateQueries({ queryKey: ["plans"] });
     void qc.invalidateQueries({ queryKey: ["plan-economics", id] });
+    void qc.invalidateQueries({ queryKey: ["allocations"] });
   };
 
   const update = useMutation({
@@ -116,6 +118,20 @@ export default function PricingPlanDetailPage() {
 
   const weeks = useMemo(() => (plan ? weeksBetween(plan.startDate, plan.endDate) : []), [plan]);
 
+  const namedPersonIds = useMemo(
+    () => [...new Set((plan?.lineItems ?? []).flatMap((l) => (l.personId ? [l.personId] : [])))],
+    [plan],
+  );
+  const { data: windowAllocations = [] } = useQuery({
+    queryKey: ["allocations", weeks[0], weeks.length],
+    queryFn: () => api.listAllocations(weeks[0], weeks.length),
+    enabled: weeks.length > 0 && namedPersonIds.length > 0,
+  });
+  const conflicts = useMemo(
+    () => staffingConflicts(namedPersonIds, people, windowAllocations),
+    [namedPersonIds, people, windowAllocations],
+  );
+
   if (isLoading || !plan) {
     return <p className="text-sm text-[var(--color-muted-foreground)]">{isLoading ? "Loading…" : "Plan not found."}</p>;
   }
@@ -145,6 +161,16 @@ export default function PricingPlanDetailPage() {
           </h1>
           <div className="mt-1 flex items-center gap-2">
             <PlanStatusBadge status={plan.status} />
+            {econ && econ.validationErrors.length > 0 && (
+              <Badge variant="warn">
+                {econ.validationErrors.length} pricing issue{econ.validationErrors.length === 1 ? "" : "s"}
+              </Badge>
+            )}
+            {conflicts.length > 0 && (
+              <Badge variant="over">
+                {conflicts.length} overbooked {conflicts.length === 1 ? "person" : "people"}
+              </Badge>
+            )}
             <Link to={`/projects/${plan.projectId}`} className="text-sm text-[var(--color-muted-foreground)] hover:underline">
               Open project
             </Link>
@@ -293,6 +319,37 @@ export default function PricingPlanDetailPage() {
                 ))}
               </ul>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {conflicts.length > 0 && (
+        <Card className="border-[var(--color-over)]">
+          <CardHeader>
+            <CardTitle className="text-base">Staffing conflicts</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <p className="text-[var(--color-muted-foreground)]">
+              Named resources booked past their weekly capacity across all projects during this engagement.
+            </p>
+            <ul className="space-y-1">
+              {conflicts.map((c) => (
+                <li key={c.personId} className="flex items-start gap-2">
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[var(--color-over)]" />
+                  <span>
+                    <Link to={`/people/${c.personId}`} className="font-medium hover:underline">
+                      {c.displayName}
+                    </Link>{" "}
+                    — {c.weeks.length} overbooked week{c.weeks.length === 1 ? "" : "s"}:{" "}
+                    {c.weeks
+                      .slice(0, 6)
+                      .map((w) => `${w.weekStart.slice(5)} (${w.booked}h vs ${w.capacity}h)`)
+                      .join(", ")}
+                    {c.weeks.length > 6 ? "…" : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
       )}

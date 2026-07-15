@@ -7,6 +7,7 @@ export function LoginScreen() {
     <div className="grid min-h-screen place-items-center bg-[var(--color-muted)] p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
+          <img src="/logo.png" alt="Capacity Tracker logo" className="mb-2 h-16 w-16 rounded-full" />
           <CardTitle>Consulting Capacity Tracker</CardTitle>
           <CardDescription>Sign in with your Andersen account to continue.</CardDescription>
         </CardHeader>

@@ -106,6 +106,9 @@ public class ProjectsFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
         }
 
         var before = Snapshot(project);
+        var wonNow = project.Status == ProjectStatus.Pipeline
+            && status == ProjectStatus.Active
+            && project.BaselineLockedAtUtc is null;
         project.ClientName = body.ClientName.Trim();
         project.ProjectName = body.ProjectName.Trim();
         project.StartDate = body.StartDate;
@@ -118,6 +121,10 @@ public class ProjectsFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
         project.Notes = body.Notes?.Trim();
 
         await EnsureClient(project.ClientName);
+        if (wonNow)
+        {
+            await LockBaseline(project, result.User!);
+        }
         audit.RecordDiff(nameof(Project), id.ToString(), before, Snapshot(project), result.User!.Oid);
         await db.SaveChangesAsync();
         return new OkObjectResult(ProjectDto.From(project, result.User!.HasRole(AppRoles.Leadership)));
@@ -259,6 +266,58 @@ WHERE s.[ProjectId] = {source.ProjectId}
         await db.SaveChangesAsync();
         var includeFinancials = result.User!.HasRole(AppRoles.Leadership);
         return new OkObjectResult(created.Select(p => ProjectDto.From(p, includeFinancials)).ToList());
+    }
+
+    [Function("GetProjectBaseline")]
+    public async Task<IActionResult> GetBaseline(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "projects/{id:guid}/baseline")] HttpRequest req, Guid id)
+    {
+        var result = auth.Authorize(req, AppRoles.Viewer, AppRoles.Editor, AppRoles.Leadership);
+        if (!result.Allowed)
+        {
+            return result.Error!;
+        }
+
+        var project = await db.Projects.AsNoTracking().FirstOrDefaultAsync(p => p.ProjectId == id);
+        if (project is null)
+        {
+            return new NotFoundResult();
+        }
+        if (project.BaselineLockedAtUtc is null)
+        {
+            return new OkObjectResult(null);
+        }
+
+        var lines = await db.ProjectBaselineLines.AsNoTracking()
+            .Where(l => l.ProjectId == id)
+            .OrderBy(l => l.PersonName).ThenBy(l => l.WeekStart)
+            .Select(l => new ProjectBaselineLineDto(l.PersonId, l.PersonName, l.IsPlaceholder, l.WeekStart, l.Hours))
+            .ToListAsync();
+        return new OkObjectResult(new ProjectBaselineDto(project.BaselineLockedAtUtc.Value, project.BaselineLockedBy, lines));
+    }
+
+    /// <summary>Snapshots the current staffing plan as the locked Original Plan.</summary>
+    private async Task LockBaseline(Project project, CurrentUser user)
+    {
+        var lines = await db.Allocations.AsNoTracking()
+            .Where(a => a.ProjectId == project.ProjectId && a.Hours > 0)
+            .Join(db.People.AsNoTracking(), a => a.PersonId, p => p.PersonId, (a, p) => new ProjectBaselineLine
+            {
+                ProjectBaselineLineId = Guid.NewGuid(),
+                ProjectId = project.ProjectId,
+                PersonId = a.PersonId,
+                PersonName = p.DisplayName,
+                IsPlaceholder = p.IsPlaceholder,
+                WeekStart = a.WeekStart,
+                Hours = a.Hours,
+            })
+            .ToListAsync();
+
+        db.ProjectBaselineLines.AddRange(lines);
+        project.BaselineLockedAtUtc = DateTime.UtcNow;
+        project.BaselineLockedBy = user.Email;
+        audit.Record(nameof(Project), project.ProjectId.ToString(), "baselineLocked", null,
+            $"{lines.Count} plan line(s), {lines.Sum(l => l.Hours)}h", user.Oid);
     }
 
     private Task EnsureClient(string name) => ClientsFunctions.InsertClientIfMissing(db, name);

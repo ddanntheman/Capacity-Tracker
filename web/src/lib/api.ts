@@ -10,6 +10,7 @@ import type {
   Person,
   Practice,
   Project,
+  ProjectBaseline,
   ProjectStatus,
   RangeAllocationWriteResult,
   UtilizationResponse,
@@ -65,10 +66,12 @@ export const api = {
 
   listProjects: (pickerOnly = false) =>
     request<Project[]>(`/projects${pickerOnly ? "?picker=true" : ""}`),
-  createProject: (body: Omit<Project, "projectId">) =>
+  createProject: (body: Omit<Project, "projectId" | "baselineLockedAtUtc">) =>
     request<Project>("/projects", { method: "POST", body: JSON.stringify(body) }),
-  updateProject: (id: string, body: Omit<Project, "projectId">) =>
+  updateProject: (id: string, body: Omit<Project, "projectId" | "baselineLockedAtUtc">) =>
     request<Project>(`/projects/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  getProjectBaseline: (id: string) =>
+    request<ProjectBaseline | null>(`/projects/${id}/baseline`),
   archiveProject: (id: string) => request<Project>(`/projects/${id}/archive`, { method: "POST" }),
   mergeProject: (id: string, targetProjectId: string) =>
     request<Project>(`/projects/${id}/merge`, { method: "POST", body: JSON.stringify({ targetProjectId }) }),

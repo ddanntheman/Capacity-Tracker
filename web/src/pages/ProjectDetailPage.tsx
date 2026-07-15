@@ -1,10 +1,10 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { mondayOf, weekLabel } from "@/lib/weeks";
-import type { Person, Project, ProjectBaseline } from "@/lib/types";
+import type { Person, Project, ProjectBaseline, RevenueSetup } from "@/lib/types";
 import { useAuth } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -295,6 +295,10 @@ export default function ProjectDetailPage() {
         <BaselineCard baseline={baselineQuery.data} team={team} />
       )}
 
+      {hasRole("editor", "leadership") && <RevenueSetupCard projectId={project.projectId} canEdit={canEdit} />}
+      {hasRole("editor", "leadership") && <RevenueMonthsCard projectId={project.projectId} />}
+      <DocumentsCard projectId={project.projectId} canEdit={canEdit} />
+
       {staffOpen && (
         <StaffRangeDialog
           open={staffOpen}
@@ -417,6 +421,363 @@ function BaselineCard({ baseline, team }: { baseline: ProjectBaseline; team: Tea
                 {totalCurrent - totalPlanned}
               </TableCell>
             </TableRow>
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+const FEE_STRUCTURES = ["RoleBased", "BlendedRate", "FixedFee", "Milestone", "Outcome"];
+
+/**
+ * Revenue setup (RS-02/03/04): the fee structure, TCV, and invoice schedule
+ * proposed from the pricing plan and explicitly confirmed by the EM before
+ * driving the revenue forecast.
+ */
+function RevenueSetupCard({ projectId, canEdit }: { projectId: string; canEdit: boolean }) {
+  const qc = useQueryClient();
+  const setupQuery = useQuery({
+    queryKey: ["revenue-setup", projectId],
+    queryFn: () => api.getRevenueSetup(projectId),
+  });
+  const [editing, setEditing] = useState<RevenueSetup | null>(null);
+
+  const refresh = () => void qc.invalidateQueries({ queryKey: ["revenue-setup", projectId] });
+
+  const propose = useMutation({
+    mutationFn: () => api.proposeRevenueSetup(projectId),
+    onSuccess: () => {
+      toast.success("Revenue setup proposed from the pricing plan — review and confirm");
+      refresh();
+    },
+    onError: (e) => {
+      const body = e instanceof ApiError ? (e.body as { error?: string } | null) : null;
+      toast.error(body?.error ?? "Failed to propose revenue setup");
+    },
+  });
+
+  const save = useMutation({
+    mutationFn: (confirm: boolean) =>
+      api.updateRevenueSetup(projectId, {
+        feeStructure: editing!.feeStructure,
+        tcv: editing!.tcv,
+        contractRph: editing!.contractRph,
+        invoiceFrequency: editing!.invoiceFrequency,
+        invoiceScheduleNotes: editing!.invoiceScheduleNotes,
+        confirm,
+      }),
+    onSuccess: (_, confirm) => {
+      toast.success(confirm ? "Revenue setup confirmed" : "Revenue setup updated");
+      setEditing(null);
+      refresh();
+    },
+    onError: (e) => {
+      const body = e instanceof ApiError ? (e.body as { error?: string } | null) : null;
+      toast.error(body?.error ?? "Failed to save revenue setup");
+    },
+  });
+
+  const setup = setupQuery.data;
+  if (setupQuery.isLoading) return null;
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between space-y-0">
+        <div>
+          <CardTitle className="text-base">Revenue setup</CardTitle>
+          <CardDescription>
+            Fee structure, TCV, and invoice schedule that drive the revenue forecast. Values take effect only after
+            explicit confirmation.
+          </CardDescription>
+        </div>
+        {setup && (
+          <Badge variant={setup.confirmed ? "ok" : "warn"}>
+            {setup.confirmed ? `Confirmed by ${setup.confirmedBy ?? "—"}` : setup.isInferred ? "Proposed — needs review" : "Unconfirmed"}
+          </Badge>
+        )}
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {!setup ? (
+          <div className="flex items-center gap-3 text-sm text-[var(--color-muted-foreground)]">
+            <span>No revenue setup yet.</span>
+            {canEdit && (
+              <Button size="sm" variant="outline" onClick={() => propose.mutate()} disabled={propose.isPending}>
+                Propose from pricing plan
+              </Button>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm md:grid-cols-4">
+              <div>
+                <p className="text-xs text-[var(--color-muted-foreground)]">Fee structure</p>
+                <p>{setup.feeStructure}</p>
+              </div>
+              <div>
+                <p className="text-xs text-[var(--color-muted-foreground)]">TCV</p>
+                <p className="tabular-nums">${setup.tcv.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+              </div>
+              <div>
+                <p className="text-xs text-[var(--color-muted-foreground)]">Contract RPH</p>
+                <p className="tabular-nums">{setup.contractRph != null ? `$${setup.contractRph.toLocaleString()}` : "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-[var(--color-muted-foreground)]">Invoice frequency</p>
+                <p>{setup.invoiceFrequency ?? "—"}</p>
+              </div>
+              {setup.invoiceScheduleNotes && (
+                <div className="col-span-2 md:col-span-4">
+                  <p className="text-xs text-[var(--color-muted-foreground)]">Invoice schedule / payment terms</p>
+                  <p>{setup.invoiceScheduleNotes}</p>
+                </div>
+              )}
+            </div>
+            {canEdit && (
+              <Button size="sm" variant="outline" onClick={() => setEditing({ ...setup })}>
+                Review & edit
+              </Button>
+            )}
+          </>
+        )}
+        {editing && (
+          <Dialog open onOpenChange={(o) => !o && setEditing(null)}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Review revenue setup</DialogTitle>
+                <DialogDescription>
+                  Correct the proposed values, then confirm to make them drive the revenue forecast.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label>Fee structure</Label>
+                  <Select
+                    value={editing.feeStructure}
+                    onValueChange={(v) => setEditing({ ...editing, feeStructure: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FEE_STRUCTURES.map((f) => (
+                        <SelectItem key={f} value={f}>
+                          {f}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>TCV ($)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={String(editing.tcv)}
+                    onChange={(e) => setEditing({ ...editing, tcv: Number(e.target.value) || 0 })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Contract RPH ($/hr, optional)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={editing.contractRph != null ? String(editing.contractRph) : ""}
+                    onChange={(e) => setEditing({ ...editing, contractRph: e.target.value === "" ? null : Number(e.target.value) })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Invoice frequency</Label>
+                  <Input
+                    placeholder="monthly / quarterly / milestone"
+                    value={editing.invoiceFrequency ?? ""}
+                    onChange={(e) => setEditing({ ...editing, invoiceFrequency: e.target.value || null })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Invoice schedule / payment terms</Label>
+                  <Input
+                    value={editing.invoiceScheduleNotes ?? ""}
+                    onChange={(e) => setEditing({ ...editing, invoiceScheduleNotes: e.target.value || null })}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => save.mutate(false)} disabled={save.isPending}>
+                  Save
+                </Button>
+                <Button onClick={() => save.mutate(true)} disabled={save.isPending}>
+                  Save & confirm
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Monthly revenue: locked Original Plan vs the current forecast (RS-07). */
+function RevenueMonthsCard({ projectId }: { projectId: string }) {
+  const { data: months = [] } = useQuery({
+    queryKey: ["project-revenue", projectId],
+    queryFn: () => api.projectRevenue(projectId),
+  });
+  if (months.length === 0) return null;
+
+  const fmt = (n: number) => `$${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Monthly revenue — Original Plan vs Forecast</CardTitle>
+        <CardDescription>Original Plan is locked at win; the forecast is editable on the pricing plan.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Month</TableHead>
+              <TableHead className="text-right">Original plan</TableHead>
+              <TableHead className="text-right">Forecast</TableHead>
+              <TableHead className="text-right">Variance</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {months.map((m) => (
+              <TableRow key={m.periodStart}>
+                <TableCell>{m.periodStart.slice(0, 7)}</TableCell>
+                <TableCell className="text-right tabular-nums">{fmt(m.originalPlan)}</TableCell>
+                <TableCell className="text-right tabular-nums">{fmt(m.forecast)}</TableCell>
+                <TableCell
+                  className={`text-right tabular-nums ${
+                    m.variance > 0 ? "text-[var(--color-ok)]" : m.variance < 0 ? "text-[var(--color-danger)]" : ""
+                  }`}
+                >
+                  {fmt(m.variance)}
+                </TableCell>
+              </TableRow>
+            ))}
+            <TableRow>
+              <TableCell className="font-semibold">Total</TableCell>
+              <TableCell className="text-right font-semibold tabular-nums">{fmt(months.reduce((s, m) => s + m.originalPlan, 0))}</TableCell>
+              <TableCell className="text-right font-semibold tabular-nums">{fmt(months.reduce((s, m) => s + m.forecast, 0))}</TableCell>
+              <TableCell className="text-right font-semibold tabular-nums">{fmt(months.reduce((s, m) => s + m.variance, 0))}</TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Task Order and contract document attachments on the engagement (RS-01). */
+function DocumentsCard({ projectId, canEdit }: { projectId: string; canEdit: boolean }) {
+  const qc = useQueryClient();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [kind, setKind] = useState("TaskOrder");
+  const { data: docs = [] } = useQuery({
+    queryKey: ["documents", projectId],
+    queryFn: () => api.listDocuments(projectId),
+  });
+
+  const upload = useMutation({
+    mutationFn: (file: File) => api.uploadDocument(projectId, file, kind),
+    onSuccess: () => {
+      toast.success("Document uploaded");
+      void qc.invalidateQueries({ queryKey: ["documents", projectId] });
+    },
+    onError: (e) => {
+      const body = e instanceof ApiError ? (e.body as { error?: string } | null) : null;
+      toast.error(body?.error ?? "Failed to upload document");
+    },
+  });
+
+  const remove = useMutation({
+    mutationFn: (docId: string) => api.deleteDocument(projectId, docId),
+    onSuccess: () => {
+      toast.success("Document deleted");
+      void qc.invalidateQueries({ queryKey: ["documents", projectId] });
+    },
+    onError: () => toast.error("Failed to delete document"),
+  });
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between space-y-0">
+        <div>
+          <CardTitle className="text-base">Contract documents</CardTitle>
+          <CardDescription>Signed Task Order, change orders, and related contract documents.</CardDescription>
+        </div>
+        {canEdit && (
+          <div className="flex items-center gap-2">
+            <Select value={kind} onValueChange={setKind}>
+              <SelectTrigger className="h-8 w-36">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="TaskOrder">Task Order</SelectItem>
+                <SelectItem value="ChangeOrder">Change Order</SelectItem>
+                <SelectItem value="Other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+            <input
+              ref={fileRef}
+              type="file"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) upload.mutate(file);
+                e.target.value = "";
+              }}
+            />
+            <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()} disabled={upload.isPending}>
+              Upload
+            </Button>
+          </div>
+        )}
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>File</TableHead>
+              <TableHead>Kind</TableHead>
+              <TableHead>Uploaded</TableHead>
+              <TableHead className="text-right">Size</TableHead>
+              {canEdit && <TableHead className="text-right">Actions</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {docs.map((d) => (
+              <TableRow key={d.engagementDocumentId}>
+                <TableCell className="font-medium">
+                  <a href={`/api/projects/${projectId}/documents/${d.engagementDocumentId}`} className="hover:underline" download>
+                    {d.fileName}
+                  </a>
+                </TableCell>
+                <TableCell>{d.kind === "TaskOrder" ? "Task Order" : d.kind === "ChangeOrder" ? "Change Order" : "Other"}</TableCell>
+                <TableCell>
+                  {new Date(d.uploadedAtUtc).toLocaleDateString()}
+                  {d.uploadedBy ? ` · ${d.uploadedBy}` : ""}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">{(d.sizeBytes / 1024).toFixed(0)} KB</TableCell>
+                {canEdit && (
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="sm" onClick={() => remove.mutate(d.engagementDocumentId)}>
+                      Delete
+                    </Button>
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+            {docs.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={canEdit ? 5 : 4} className="text-center text-[var(--color-muted-foreground)]">
+                  No documents uploaded.
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </CardContent>

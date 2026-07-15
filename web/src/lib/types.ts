@@ -246,6 +246,53 @@ export interface PlanEconomics {
   validationErrors: string[];
 }
 
+export interface RevenuePhase {
+  periodStart: string;
+  amount: number;
+  isInferred: boolean;
+}
+
+export interface PlanPhasing {
+  tcv: number;
+  tiesOut: boolean;
+  forecast: RevenuePhase[];
+  originalPlan: RevenuePhase[];
+}
+
+export type DocumentKind = "TaskOrder" | "ChangeOrder" | "Other";
+
+export interface EngagementDocument {
+  engagementDocumentId: string;
+  projectId: string;
+  kind: DocumentKind;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  uploadedAtUtc: string;
+  uploadedBy: string | null;
+}
+
+export interface RevenueSetup {
+  revenueSetupId: string;
+  projectId: string;
+  feeStructure: string;
+  tcv: number;
+  contractRph: number | null;
+  invoiceFrequency: string | null;
+  invoiceScheduleNotes: string | null;
+  isInferred: boolean;
+  confirmed: boolean;
+  confirmedBy: string | null;
+  confirmedAtUtc: string | null;
+}
+
+export interface ProjectRevenueMonth {
+  periodStart: string;
+  originalPlan: number;
+  forecast: number;
+  variance: number;
+}
+
 export interface AuditEntry {
   auditLogId: number;
   entityType: string;

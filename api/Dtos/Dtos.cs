@@ -341,6 +341,77 @@ public record PlanEconomicsDto(
     List<PlanWeekEconomicsDto> Weeks,
     List<string> ValidationErrors);
 
+// Revenue phasing & win conversion (CW-01..05, RS-01..07)
+public record RevenuePhaseDto(DateOnly PeriodStart, decimal Amount, bool IsInferred);
+
+public record PlanPhasingDto(
+    decimal Tcv,
+    bool TiesOut,
+    List<RevenuePhaseDto> Forecast,
+    List<RevenuePhaseDto> OriginalPlan);
+
+public record SavePhasingRequest(List<RevenuePhaseDto> Phases);
+
+public record ConvertPlanRequest(bool ConfirmPricing);
+
+public record EngagementDocumentDto(
+    Guid EngagementDocumentId,
+    Guid ProjectId,
+    string Kind,
+    string FileName,
+    string ContentType,
+    long SizeBytes,
+    DateTime UploadedAtUtc,
+    string? UploadedBy)
+{
+    public static EngagementDocumentDto From(EngagementDocument d) => new(
+        d.EngagementDocumentId,
+        d.ProjectId,
+        d.Kind.ToString(),
+        d.FileName,
+        d.ContentType,
+        d.SizeBytes,
+        d.UploadedAtUtc,
+        d.UploadedBy);
+}
+
+public record RevenueSetupDto(
+    Guid RevenueSetupId,
+    Guid ProjectId,
+    string FeeStructure,
+    decimal Tcv,
+    decimal? ContractRph,
+    string? InvoiceFrequency,
+    string? InvoiceScheduleNotes,
+    bool IsInferred,
+    bool Confirmed,
+    string? ConfirmedBy,
+    DateTime? ConfirmedAtUtc)
+{
+    public static RevenueSetupDto From(RevenueSetup r) => new(
+        r.RevenueSetupId,
+        r.ProjectId,
+        r.FeeStructure.ToString(),
+        r.Tcv,
+        r.ContractRph,
+        r.InvoiceFrequency,
+        r.InvoiceScheduleNotes,
+        r.IsInferred,
+        r.Confirmed,
+        r.ConfirmedBy,
+        r.ConfirmedAtUtc);
+}
+
+public record UpdateRevenueSetupRequest(
+    string FeeStructure,
+    decimal Tcv,
+    decimal? ContractRph,
+    string? InvoiceFrequency,
+    string? InvoiceScheduleNotes,
+    bool Confirm);
+
+public record ProjectRevenueMonthDto(DateOnly PeriodStart, decimal OriginalPlan, decimal Forecast, decimal Variance);
+
 // Identity
 public record MeDto(Guid Oid, string DisplayName, string Email, IEnumerable<string> Roles);
 

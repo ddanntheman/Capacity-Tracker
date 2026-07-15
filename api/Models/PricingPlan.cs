@@ -56,6 +56,11 @@ public class PricingPlan
     public DateTime CreatedAtUtc { get; set; }
     public DateTime UpdatedAtUtc { get; set; }
 
+    /// <summary>Set by the authorized win conversion (CW-01/02).</summary>
+    public DateTime? WonAtUtc { get; set; }
+
+    public string? WonBy { get; set; }
+
     public ICollection<PlanLineItem> LineItems { get; set; } = [];
 }
 

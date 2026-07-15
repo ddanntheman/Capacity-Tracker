@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CapacityTracker.Api.Functions;
 
-public class ProjectsFunctions(CapacityDbContext db, RequestAuthorizer auth, AuditService audit)
+public class ProjectsFunctions(CapacityDbContext db, RequestAuthorizer auth, AuditService audit, BaselineService baseline)
 {
     [Function("ListProjects")]
     public async Task<IActionResult> List(
@@ -123,7 +123,7 @@ public class ProjectsFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
         await EnsureClient(project.ClientName);
         if (wonNow)
         {
-            await LockBaseline(project, result.User!);
+            await baseline.LockBaseline(project, result.User!);
         }
         audit.RecordDiff(nameof(Project), id.ToString(), before, Snapshot(project), result.User!.Oid);
         await db.SaveChangesAsync();
@@ -294,30 +294,6 @@ WHERE s.[ProjectId] = {source.ProjectId}
             .Select(l => new ProjectBaselineLineDto(l.PersonId, l.PersonName, l.IsPlaceholder, l.WeekStart, l.Hours))
             .ToListAsync();
         return new OkObjectResult(new ProjectBaselineDto(project.BaselineLockedAtUtc.Value, project.BaselineLockedBy, lines));
-    }
-
-    /// <summary>Snapshots the current staffing plan as the locked Original Plan.</summary>
-    private async Task LockBaseline(Project project, CurrentUser user)
-    {
-        var lines = await db.Allocations.AsNoTracking()
-            .Where(a => a.ProjectId == project.ProjectId && a.Hours > 0)
-            .Join(db.People.AsNoTracking(), a => a.PersonId, p => p.PersonId, (a, p) => new ProjectBaselineLine
-            {
-                ProjectBaselineLineId = Guid.NewGuid(),
-                ProjectId = project.ProjectId,
-                PersonId = a.PersonId,
-                PersonName = p.DisplayName,
-                IsPlaceholder = p.IsPlaceholder,
-                WeekStart = a.WeekStart,
-                Hours = a.Hours,
-            })
-            .ToListAsync();
-
-        db.ProjectBaselineLines.AddRange(lines);
-        project.BaselineLockedAtUtc = DateTime.UtcNow;
-        project.BaselineLockedBy = user.Email;
-        audit.Record(nameof(Project), project.ProjectId.ToString(), "baselineLocked", null,
-            $"{lines.Count} plan line(s), {lines.Sum(l => l.Hours)}h", user.Oid);
     }
 
     private Task EnsureClient(string name) => ClientsFunctions.InsertClientIfMissing(db, name);

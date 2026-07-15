@@ -13,7 +13,12 @@ import type {
   PricingPlanSummary,
   Practice,
   Project,
+  ProjectRevenueMonth,
   RateCardEntry,
+  RevenuePhase,
+  RevenueSetup,
+  EngagementDocument,
+  PlanPhasing,
   ProjectBaseline,
   ProjectStatus,
   RangeAllocationWriteResult,
@@ -171,6 +176,45 @@ export const api = {
   setPlanLineHours: (planId: string, lineId: string, weekHours: { weekStart: string; hours: number }[]) =>
     request<PricingPlan>(`/plans/${planId}/lines/${lineId}/hours`, { method: "PUT", body: JSON.stringify({ weekHours }) }),
   planEconomics: (id: string) => request<PlanEconomics>(`/plans/${id}/economics`),
+
+  getPlanPhasing: (id: string) => request<PlanPhasing>(`/plans/${id}/phasing`),
+  savePlanPhasing: (id: string, phases: RevenuePhase[]) =>
+    request<PlanPhasing>(`/plans/${id}/phasing`, { method: "PUT", body: JSON.stringify({ phases }) }),
+  convertPlan: (id: string) =>
+    request<{ converted: boolean; tcv: number; months: number }>(`/plans/${id}/convert`, {
+      method: "POST",
+      body: JSON.stringify({ confirmPricing: true }),
+    }),
+
+  listDocuments: (projectId: string) => request<EngagementDocument[]>(`/projects/${projectId}/documents`),
+  uploadDocument: async (projectId: string, file: File, kind: string): Promise<EngagementDocument> => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("kind", kind);
+    const res = await fetch(`/api/projects/${projectId}/documents`, { method: "POST", body: form });
+    if (!res.ok) {
+      throw new ApiError(res.status, await res.json().catch(() => null));
+    }
+    return (await res.json()) as EngagementDocument;
+  },
+  deleteDocument: (projectId: string, docId: string) =>
+    request<void>(`/projects/${projectId}/documents/${docId}`, { method: "DELETE" }),
+
+  getRevenueSetup: (projectId: string) => request<RevenueSetup | null>(`/projects/${projectId}/revenue-setup`),
+  proposeRevenueSetup: (projectId: string) =>
+    request<RevenueSetup>(`/projects/${projectId}/revenue-setup/propose`, { method: "POST" }),
+  updateRevenueSetup: (
+    projectId: string,
+    body: {
+      feeStructure: string;
+      tcv: number;
+      contractRph: number | null;
+      invoiceFrequency: string | null;
+      invoiceScheduleNotes: string | null;
+      confirm: boolean;
+    },
+  ) => request<RevenueSetup>(`/projects/${projectId}/revenue-setup`, { method: "PUT", body: JSON.stringify(body) }),
+  projectRevenue: (projectId: string) => request<ProjectRevenueMonth[]>(`/projects/${projectId}/revenue`),
 
   auditLog: (params: { from?: string; to?: string; entityType?: string; entityId?: string; take?: number }) => {
     const qs = new URLSearchParams();

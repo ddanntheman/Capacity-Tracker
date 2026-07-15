@@ -17,6 +17,9 @@ public class CapacityDbContext(DbContextOptions<CapacityDbContext> options) : Db
     public DbSet<PricingPlan> PricingPlans => Set<PricingPlan>();
     public DbSet<PlanLineItem> PlanLineItems => Set<PlanLineItem>();
     public DbSet<PlanWeekHours> PlanWeekHours => Set<PlanWeekHours>();
+    public DbSet<RevenuePhase> RevenuePhases => Set<RevenuePhase>();
+    public DbSet<EngagementDocument> EngagementDocuments => Set<EngagementDocument>();
+    public DbSet<RevenueSetup> RevenueSetups => Set<RevenueSetup>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -170,6 +173,49 @@ public class CapacityDbContext(DbContextOptions<CapacityDbContext> options) : Db
                 .HasForeignKey(w => w.PlanLineItemId)
                 .OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(w => new { w.PlanLineItemId, w.WeekStart }).IsUnique();
+        });
+
+        b.Entity<RevenuePhase>(e =>
+        {
+            e.HasKey(r => r.RevenuePhaseId);
+            e.Property(r => r.Layer).HasConversion<int>();
+            e.Property(r => r.Amount).HasPrecision(14, 2);
+            e.HasOne(r => r.Plan)
+                .WithMany()
+                .HasForeignKey(r => r.PricingPlanId)
+                .OnDelete(DeleteBehavior.Cascade);
+            // One row per plan/layer/period.
+            e.HasIndex(r => new { r.PricingPlanId, r.Layer, r.PeriodStart }).IsUnique();
+        });
+
+        b.Entity<EngagementDocument>(e =>
+        {
+            e.HasKey(d => d.EngagementDocumentId);
+            e.Property(d => d.Kind).HasConversion<int>();
+            e.Property(d => d.FileName).HasMaxLength(512).IsRequired();
+            e.Property(d => d.ContentType).HasMaxLength(256).IsRequired();
+            e.Property(d => d.UploadedBy).HasMaxLength(256);
+            e.HasOne(d => d.Project)
+                .WithMany()
+                .HasForeignKey(d => d.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(d => d.ProjectId);
+        });
+
+        b.Entity<RevenueSetup>(e =>
+        {
+            e.HasKey(r => r.RevenueSetupId);
+            e.Property(r => r.FeeStructure).HasConversion<int>();
+            e.Property(r => r.Tcv).HasPrecision(14, 2);
+            e.Property(r => r.ContractRph).HasPrecision(10, 2);
+            e.Property(r => r.InvoiceFrequency).HasMaxLength(64);
+            e.Property(r => r.InvoiceScheduleNotes).HasMaxLength(4000);
+            e.Property(r => r.ConfirmedBy).HasMaxLength(256);
+            e.HasOne(r => r.Project)
+                .WithMany()
+                .HasForeignKey(r => r.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(r => r.ProjectId).IsUnique();
         });
 
         b.Entity<ProjectBaselineLine>(e =>

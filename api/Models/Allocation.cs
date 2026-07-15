@@ -17,4 +17,10 @@ public class Allocation
     public DateOnly WeekStart { get; set; }
 
     public decimal Hours { get; set; }
+
+    /// <summary>
+    /// Set when this booking is managed by a pricing-plan line item; such rows
+    /// are replaced wholesale whenever the plan's hours grid changes.
+    /// </summary>
+    public Guid? PlanLineItemId { get; set; }
 }

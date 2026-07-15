@@ -203,6 +203,144 @@ public record UpsertAllocationRequest(Guid PersonId, Guid ProjectId, DateOnly We
 /// <summary>Staff a person on a project for a run of weeks at a constant hours/week.</summary>
 public record RangeUpsertAllocationRequest(Guid PersonId, Guid ProjectId, DateOnly WeekStart, int Weeks, decimal HoursPerWeek);
 
+// Rate card
+public record RateCardEntryDto(Guid RateCardEntryId, string Rank, string Geography, DateOnly EffectiveFrom, decimal CostRate, decimal BillRate)
+{
+    public static RateCardEntryDto From(RateCardEntry r) =>
+        new(r.RateCardEntryId, r.Rank, r.Geography, r.EffectiveFrom, r.CostRate, r.BillRate);
+}
+
+public record UpsertRateCardEntryRequest(string Rank, string Geography, DateOnly EffectiveFrom, decimal CostRate, decimal BillRate);
+
+// Pricing plans
+public record PricingPlanSummaryDto(
+    Guid PricingPlanId,
+    Guid ProjectId,
+    string ClientName,
+    string ProjectName,
+    Guid? MdOwnerId,
+    string? MdOwnerName,
+    string? Practice,
+    string Status,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    string PricingModel,
+    int LineItemCount,
+    decimal TotalHours,
+    DateTime UpdatedAtUtc);
+
+public record PlanWeekHoursDto(DateOnly WeekStart, decimal Hours);
+
+public record PlanLineItemDto(
+    Guid PlanLineItemId,
+    string RoleTitle,
+    string? Rank,
+    string? Geography,
+    string Organization,
+    string? SubcontractorFirm,
+    Guid? PersonId,
+    string? PersonName,
+    decimal? CostRateOverride,
+    decimal? BillRateOverride,
+    decimal? ClientRate,
+    int SortOrder,
+    List<PlanWeekHoursDto> WeekHours);
+
+public record PricingPlanDto(
+    Guid PricingPlanId,
+    Guid ProjectId,
+    string ClientName,
+    string ProjectName,
+    Guid? MdOwnerId,
+    string? Practice,
+    string Status,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    string PricingModel,
+    decimal? BlendedRate,
+    decimal? FixedFee,
+    decimal TechnologyFees,
+    decimal RecoverableExpenses,
+    string? Notes,
+    DateTime CreatedAtUtc,
+    DateTime UpdatedAtUtc,
+    List<PlanLineItemDto> LineItems);
+
+public record CreatePricingPlanRequest(
+    Guid? ProjectId,
+    string? ClientName,
+    string? ProjectName,
+    Guid? MdOwnerId,
+    string? Practice,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    string? PricingModel);
+
+public record UpdatePricingPlanRequest(
+    Guid? MdOwnerId,
+    string? Practice,
+    string Status,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    string PricingModel,
+    decimal? BlendedRate,
+    decimal? FixedFee,
+    decimal TechnologyFees,
+    decimal RecoverableExpenses,
+    string? Notes);
+
+public record UpsertPlanLineItemRequest(
+    string RoleTitle,
+    string? Rank,
+    string? Geography,
+    string Organization,
+    string? SubcontractorFirm,
+    Guid? PersonId,
+    decimal? CostRateOverride,
+    decimal? BillRateOverride,
+    decimal? ClientRate,
+    int? SortOrder);
+
+public record SetPlanWeekHoursRequest(List<PlanWeekHoursDto> WeekHours);
+
+// Plan economics (PR-08/09/10)
+public record PlanLineEconomicsDto(
+    Guid PlanLineItemId,
+    string RoleTitle,
+    string? PersonName,
+    string Organization,
+    decimal TotalHours,
+    decimal? CostRate,
+    decimal? ClientRate,
+    decimal Fees,
+    decimal Cost,
+    decimal Margin);
+
+public record PlanWeekEconomicsDto(DateOnly WeekStart, decimal Hours, decimal CumulativeHours, decimal Fees, decimal Cost, decimal Margin);
+
+public record PlanEconomicsDto(
+    decimal TotalHours,
+    decimal LaborFees,
+    decimal TechnologyFees,
+    decimal Tcv,
+    decimal? JobRph,
+    decimal InternalCost,
+    decimal SubcontractorCost,
+    decimal GrossProfit,
+    decimal? JobMarginPct,
+    // Andersen/SAP metrics view
+    decimal GrossFeesAtStandard,
+    decimal RecoverableExpenses,
+    decimal NetFees,
+    decimal FeeAdjustment,
+    decimal? RecoveryPct,
+    decimal BillableHours,
+    decimal? InternalRph,
+    decimal? InternalMarginPct,
+    List<PlanLineEconomicsDto> Lines,
+    List<PlanWeekEconomicsDto> Weeks,
+    List<string> ValidationErrors);
+
 // Identity
 public record MeDto(Guid Oid, string DisplayName, string Email, IEnumerable<string> Roles);
 

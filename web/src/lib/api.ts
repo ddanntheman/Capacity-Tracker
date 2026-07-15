@@ -8,8 +8,12 @@ import type {
   DashboardSummary,
   Me,
   Person,
+  PlanEconomics,
+  PricingPlan,
+  PricingPlanSummary,
   Practice,
   Project,
+  RateCardEntry,
   ProjectBaseline,
   ProjectStatus,
   RangeAllocationWriteResult,
@@ -122,6 +126,52 @@ export const api = {
   dashboardUtilization: (weekStart: string, weeks: number) =>
     request<UtilizationResponse>(`/dashboard/utilization?weekStart=${weekStart}&weeks=${weeks}`),
 
+  listRateCard: () => request<RateCardEntry[]>("/ratecard"),
+  createRateCardEntry: (body: Omit<RateCardEntry, "rateCardEntryId">) =>
+    request<RateCardEntry>("/ratecard", { method: "POST", body: JSON.stringify(body) }),
+  updateRateCardEntry: (id: string, body: Omit<RateCardEntry, "rateCardEntryId">) =>
+    request<RateCardEntry>(`/ratecard/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteRateCardEntry: (id: string) => request<void>(`/ratecard/${id}`, { method: "DELETE" }),
+
+  listPlans: () => request<PricingPlanSummary[]>("/plans"),
+  getPlan: (id: string) => request<PricingPlan>(`/plans/${id}`),
+  createPlan: (body: {
+    projectId?: string | null;
+    clientName?: string | null;
+    projectName?: string | null;
+    mdOwnerId?: string | null;
+    practice?: string | null;
+    startDate: string;
+    endDate: string;
+    pricingModel?: string | null;
+  }) => request<PricingPlan>("/plans", { method: "POST", body: JSON.stringify(body) }),
+  updatePlan: (
+    id: string,
+    body: {
+      mdOwnerId: string | null;
+      practice: string | null;
+      status: string;
+      startDate: string;
+      endDate: string;
+      pricingModel: string;
+      blendedRate: number | null;
+      fixedFee: number | null;
+      technologyFees: number;
+      recoverableExpenses: number;
+      notes: string | null;
+    },
+  ) => request<PricingPlan>(`/plans/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deletePlan: (id: string) => request<void>(`/plans/${id}`, { method: "DELETE" }),
+  createPlanLine: (planId: string, body: PlanLineWrite) =>
+    request<PricingPlan>(`/plans/${planId}/lines`, { method: "POST", body: JSON.stringify(body) }),
+  updatePlanLine: (planId: string, lineId: string, body: PlanLineWrite) =>
+    request<PricingPlan>(`/plans/${planId}/lines/${lineId}`, { method: "PUT", body: JSON.stringify(body) }),
+  deletePlanLine: (planId: string, lineId: string) =>
+    request<PricingPlan>(`/plans/${planId}/lines/${lineId}`, { method: "DELETE" }),
+  setPlanLineHours: (planId: string, lineId: string, weekHours: { weekStart: string; hours: number }[]) =>
+    request<PricingPlan>(`/plans/${planId}/lines/${lineId}/hours`, { method: "PUT", body: JSON.stringify({ weekHours }) }),
+  planEconomics: (id: string) => request<PlanEconomics>(`/plans/${id}/economics`),
+
   auditLog: (params: { from?: string; to?: string; entityType?: string; entityId?: string; take?: number }) => {
     const qs = new URLSearchParams();
     if (params.from) qs.set("from", params.from);
@@ -132,5 +182,18 @@ export const api = {
     return request<AuditEntry[]>(`/audit?${qs.toString()}`);
   },
 };
+
+export interface PlanLineWrite {
+  roleTitle: string;
+  rank: string | null;
+  geography: string | null;
+  organization: string;
+  subcontractorFirm: string | null;
+  personId: string | null;
+  costRateOverride: number | null;
+  billRateOverride: number | null;
+  clientRate: number | null;
+  sortOrder?: number | null;
+}
 
 export type { ProjectStatus };

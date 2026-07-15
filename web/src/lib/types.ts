@@ -129,6 +129,123 @@ export interface UtilizationResponse {
   peopleCount: number;
 }
 
+export interface RateCardEntry {
+  rateCardEntryId: string;
+  rank: string;
+  geography: string;
+  effectiveFrom: string;
+  costRate: number;
+  billRate: number;
+}
+
+export type PlanStatus = "draft" | "activePursuit" | "closedWon" | "closedLost";
+export type PricingModel = "BlendedRate" | "RoleBased" | "FixedFee" | "Milestone" | "Outcome";
+export type LineOrganization = "internal" | "subcontractor";
+
+export interface PlanWeekHours {
+  weekStart: string;
+  hours: number;
+}
+
+export interface PlanLineItem {
+  planLineItemId: string;
+  roleTitle: string;
+  rank: string | null;
+  geography: string | null;
+  organization: LineOrganization;
+  subcontractorFirm: string | null;
+  personId: string | null;
+  personName: string | null;
+  costRateOverride: number | null;
+  billRateOverride: number | null;
+  clientRate: number | null;
+  sortOrder: number;
+  weekHours: PlanWeekHours[];
+}
+
+export interface PricingPlanSummary {
+  pricingPlanId: string;
+  projectId: string;
+  clientName: string;
+  projectName: string;
+  mdOwnerId: string | null;
+  mdOwnerName: string | null;
+  practice: string | null;
+  status: PlanStatus;
+  startDate: string;
+  endDate: string;
+  pricingModel: PricingModel;
+  lineItemCount: number;
+  totalHours: number;
+  updatedAtUtc: string;
+}
+
+export interface PricingPlan {
+  pricingPlanId: string;
+  projectId: string;
+  clientName: string;
+  projectName: string;
+  mdOwnerId: string | null;
+  practice: string | null;
+  status: PlanStatus;
+  startDate: string;
+  endDate: string;
+  pricingModel: PricingModel;
+  blendedRate: number | null;
+  fixedFee: number | null;
+  technologyFees: number;
+  recoverableExpenses: number;
+  notes: string | null;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  lineItems: PlanLineItem[];
+}
+
+export interface PlanLineEconomics {
+  planLineItemId: string;
+  roleTitle: string;
+  personName: string | null;
+  organization: LineOrganization;
+  totalHours: number;
+  costRate: number | null;
+  clientRate: number | null;
+  fees: number;
+  cost: number;
+  margin: number;
+}
+
+export interface PlanWeekEconomics {
+  weekStart: string;
+  hours: number;
+  cumulativeHours: number;
+  fees: number;
+  cost: number;
+  margin: number;
+}
+
+export interface PlanEconomics {
+  totalHours: number;
+  laborFees: number;
+  technologyFees: number;
+  tcv: number;
+  jobRph: number | null;
+  internalCost: number;
+  subcontractorCost: number;
+  grossProfit: number;
+  jobMarginPct: number | null;
+  grossFeesAtStandard: number;
+  recoverableExpenses: number;
+  netFees: number;
+  feeAdjustment: number;
+  recoveryPct: number | null;
+  billableHours: number;
+  internalRph: number | null;
+  internalMarginPct: number | null;
+  lines: PlanLineEconomics[];
+  weeks: PlanWeekEconomics[];
+  validationErrors: string[];
+}
+
 export interface AuditEntry {
   auditLogId: number;
   entityType: string;

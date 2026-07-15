@@ -523,6 +523,33 @@ public record ProjectDeliveryDto(
     DateTime? LastActualEntryUtc,
     List<DateOnly> ZeroRevenueMonths);
 
+// Firm-wide delivery health (DT-05/07, ETC-05)
+public record DeliveryHealthDto(
+    Guid ProjectId,
+    Guid PricingPlanId,
+    string Client,
+    string Engagement,
+    string? MdOwner,
+    string? Practice,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    string Status,
+    bool ActualsStale,
+    DateTime? LastActualEntryUtc,
+    List<DateOnly> ZeroRevenueMonths,
+    int PastZeroRevenueMonths,
+    decimal EacHours,
+    decimal AmendedBaselineHours,
+    decimal HoursVariance,
+    decimal EacFees,
+    decimal AmendedTcv,
+    decimal FeesVariance,
+    decimal? EacMarginPct,
+    bool HoursOverrun,
+    bool FeeOverrun,
+    bool MarginErosion,
+    bool HasEtcOverride);
+
 // Invoicing (INV-01..06)
 public record InvoiceWeekCellDto(DateOnly WeekStart, decimal Hours, bool FromActuals);
 

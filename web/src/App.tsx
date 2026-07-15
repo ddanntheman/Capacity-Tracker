@@ -11,6 +11,7 @@ import ProjectDetailPage from "@/pages/ProjectDetailPage";
 import ProjectDeliveryPage from "@/pages/ProjectDeliveryPage";
 import ProjectInvoicingPage from "@/pages/ProjectInvoicingPage";
 import RollupsPage from "@/pages/RollupsPage";
+import DeliveryHealthPage from "@/pages/DeliveryHealthPage";
 import AuditPage from "@/pages/AuditPage";
 import UtilizationTrackerPage from "@/pages/UtilizationTrackerPage";
 import ResourceSummaryPage from "@/pages/ResourceSummaryPage";
@@ -97,6 +98,14 @@ export default function App() {
           element={
             <RequireRole roles={["viewer", "editor", "leadership"]}>
               <ProjectInvoicingPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/delivery-health"
+          element={
+            <RequireRole roles={["viewer", "editor", "leadership"]}>
+              <DeliveryHealthPage />
             </RequireRole>
           }
         />

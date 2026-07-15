@@ -406,6 +406,33 @@ export interface ProjectDelivery {
   zeroRevenueMonths: string[];
 }
 
+export interface DeliveryHealthRow {
+  projectId: string;
+  pricingPlanId: string;
+  client: string;
+  engagement: string;
+  mdOwner: string | null;
+  practice: string | null;
+  startDate: string;
+  endDate: string;
+  status: "red" | "yellow" | "green";
+  actualsStale: boolean;
+  lastActualEntryUtc: string | null;
+  zeroRevenueMonths: string[];
+  pastZeroRevenueMonths: number;
+  eacHours: number;
+  amendedBaselineHours: number;
+  hoursVariance: number;
+  eacFees: number;
+  amendedTcv: number;
+  feesVariance: number;
+  eacMarginPct: number | null;
+  hoursOverrun: boolean;
+  feeOverrun: boolean;
+  marginErosion: boolean;
+  hasEtcOverride: boolean;
+}
+
 export interface InvoiceWeekCell {
   weekStart: string;
   hours: number;

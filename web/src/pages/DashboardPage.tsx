@@ -45,6 +45,8 @@ export default function DashboardPage() {
     queryFn: () => api.listAllocations(weekStart, weeks),
   });
   const clients = useQuery({ queryKey: ["clients"], queryFn: () => api.listClients() });
+  const health = useQuery({ queryKey: ["delivery-health"], queryFn: api.getDeliveryHealth });
+  const healthAttention = (health.data ?? []).filter((h) => h.status !== "green");
 
   const clientIdByName = useMemo(() => new Map((clients.data ?? []).map((c) => [c.name, c.clientId])), [clients.data]);
   const projectById = useMemo(() => new Map((projects.data ?? []).map((p) => [p.projectId, p])), [projects.data]);
@@ -182,6 +184,20 @@ export default function DashboardPage() {
           onClick={() => setStatDrill("overcommitted")}
         />
       </div>
+
+      <Link to="/delivery-health" className="block">
+        <Card className="transition-shadow hover:shadow-md">
+          <CardHeader className="pb-2">
+            <CardDescription>Delivery health</CardDescription>
+            <CardTitle className="text-3xl">
+              {health.isLoading ? <Skeleton className="h-8 w-16" /> : healthAttention.length}
+            </CardTitle>
+            <CardDescription>
+              engagement(s) needing attention — EAC overruns, stale actuals, or zero-revenue months
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </Link>
 
       <Card>
         <CardHeader>

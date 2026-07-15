@@ -103,6 +103,11 @@ public class TaskOrderFunctions(CapacityDbContext db, RequestAuthorizer auth, Au
             return new NotFoundResult();
         }
 
+        if (extraction.AppliedAtUtc is not null)
+        {
+            return new BadRequestObjectResult(new { error = "This extraction has already been applied." });
+        }
+
         var setup = await db.RevenueSetups.FirstOrDefaultAsync(r => r.ProjectId == id);
         if (setup is not null && setup.Confirmed)
         {

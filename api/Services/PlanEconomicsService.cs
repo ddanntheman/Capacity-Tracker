@@ -122,9 +122,7 @@ public static class PlanEconomicsService
                 weekly[key] = (Hours, Hours * perHour, Cost);
             }
 
-            lines = lines
-                .Select(l => l with { Fees = l.TotalHours * perHour, Margin = l.TotalHours * perHour - l.Cost })
-                .ToList();
+            lines = [.. lines.Select(l => l with { Fees = l.TotalHours * perHour, Margin = l.TotalHours * perHour - l.Cost })];
         }
 
         var weeks = new List<PlanWeekEconomicsDto>();
@@ -159,7 +157,7 @@ public static class PlanEconomicsService
             InternalMarginPct: netFees > 0 ? Math.Round((netFees - internalCost) / netFees * 100, 1) : null,
             Lines: lines,
             Weeks: weeks,
-            ValidationErrors: errors.Distinct().ToList());
+            ValidationErrors: [.. errors.Distinct()]);
     }
 
     /// <summary>Latest entry for rank/geography effective on or before the week.</summary>

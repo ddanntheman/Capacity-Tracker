@@ -65,7 +65,7 @@ public static class RevenuePhasingService
             byMonth[months[^1]] += drift;
         }
 
-        return months.Select(m => new RevenuePhaseDto(m, byMonth[m], true)).ToList();
+        return [.. months.Select(m => new RevenuePhaseDto(m, byMonth[m], true))];
     }
 
     public static List<DateOnly> MonthsBetween(DateOnly start, DateOnly end)

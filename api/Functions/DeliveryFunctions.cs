@@ -553,8 +553,8 @@ public class DeliveryFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
             lines,
             etc,
             activeOverride is null ? null : EtcOverrideDto.From(activeOverride),
-            changeOrders.Select(ChangeOrderDto.From).ToList(),
-            expenses.Select(RecoverableExpenseDto.From).ToList(),
+            [.. changeOrders.Select(ChangeOrderDto.From)],
+            [.. expenses.Select(RecoverableExpenseDto.From)],
             stale,
             lastEntry,
             zeroMonths);

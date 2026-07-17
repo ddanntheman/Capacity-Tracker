@@ -568,7 +568,7 @@ public class PricingPlansFunctions(CapacityDbContext db, RequestAuthorizer auth,
     /// Post-win rolling-forecast changes (staffing swaps, roll-offs, change
     /// orders) must carry a reason so the audit trail explains them (DT-01a).
     /// </summary>
-    private static IActionResult? RequireReason(PricingPlan plan, string? reason) =>
+    private static BadRequestObjectResult? RequireReason(PricingPlan plan, string? reason) =>
         plan.Status == PlanStatus.ClosedWon && string.IsNullOrWhiteSpace(reason)
             ? new BadRequestObjectResult(new { error = "A reason (e.g. staffing change or change order) is required for changes to a Closed/Won engagement." })
             : null;

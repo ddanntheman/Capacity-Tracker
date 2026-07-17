@@ -7,7 +7,7 @@ param namePrefix string
 @description('Tags applied to every resource.')
 param tags object
 
-@description('Resource ID of the subnet (supplied by Andersen IT) that hosts the private endpoints.')
+@description('Resource ID of the subnet (supplied by your IT team) that hosts the private endpoints.')
 param subnetId string
 
 @description('Target resource IDs to expose privately.')

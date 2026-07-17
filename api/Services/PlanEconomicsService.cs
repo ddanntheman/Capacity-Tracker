@@ -6,7 +6,7 @@ namespace CapacityTracker.Api.Services;
 /// <summary>
 /// Computes week-by-week and total deal economics for a pricing plan from its
 /// hours grid, the effective-dated rate card, and the plan's pricing model
-/// (PR-08/09), plus the Andersen/SAP standard-rate metrics view (PR-10) and
+/// (PR-08/09), plus the ERP/SAP standard-rate metrics view (PR-10) and
 /// inline validation errors (PR-11).
 /// </summary>
 public static class PlanEconomicsService

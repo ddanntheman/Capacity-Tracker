@@ -1,14 +1,3 @@
 # Code owners.
-#
-# Author: Drew Danner (@ddanntheman)
-#
-# After the repository is transferred to the Andersen-Consulting organization,
-# replace @ddanntheman with the appropriate Andersen team handles (placeholders
-# below).
 
 *                 @ddanntheman
-
-# Post-transfer ownership (uncomment and adjust once teams exist):
-# *               @Andersen-Consulting/capacity-tracker-maintainers
-# /infra/         @Andersen-Consulting/platform-engineering
-# /.github/       @Andersen-Consulting/platform-engineering

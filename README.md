@@ -1,20 +1,26 @@
 # Capacity Tracker
 
-An enterprise **capacity-management and engagement-lifecycle platform** for
-Andersen Consulting: weekly staffing and utilization at its core, plus the full
-pre-sale-to-delivery economics lifecycle — pricing plans, rate cards, pipeline
-auto-booking, Closed/Won conversion with an immutable Original Plan baseline,
-revenue phasing, delivery tracking, ETC/EAC, invoicing with SAP reconciliation,
-and firm-level rollups.
+An open-source **capacity-management and engagement-financial-planning
+platform for professional-services companies**. It answers the two questions
+every services firm runs on — *who is available, and is the work profitable?* —
+in one system:
+
+- **Capacity**: weekly, hours-based staffing and utilization for every person —
+  who is booked, who is on the bench, who is overallocated — with forecasting,
+  holiday-aware capacity, and staffing recommendations.
+- **Engagement financials**: the full pre-sale-to-delivery lifecycle — pricing
+  plans and rate cards, pipeline booking weighted by win probability,
+  Closed/Won conversion with an immutable Original Plan baseline, monthly
+  revenue phasing, delivery tracking with ETC/EAC, invoicing with variance and
+  ERP (e.g. SAP) reconciliation, and firm-level rollups against finance
+  targets.
 
 It runs entirely on managed Azure PaaS, uses **Entra ID single sign-on** (no
 custom auth code), and stores **no long-lived secrets**: every
 service-to-service connection uses managed identity.
 
 - **Author:** Drew Danner
-- **Status:** Deployed to the dev environment
-  (https://salmon-desert-092eaec10.7.azurestaticapps.net, resource group
-  `rg-capacity-dev`). Prod is defined in Bicep but not yet stood up.
+- **License:** MIT
 
 ---
 
@@ -264,8 +270,8 @@ npm run dev                                          # http://localhost:5173
 
 The Vite dev server proxies `/api` → `http://localhost:7071`, so open
 `http://localhost:5173`. You can point `SqlConnectionString` at either a local
-SQL Server container or the dev Azure SQL DB
-(`sql-cap-dev-tfoiku.database.windows.net`, database `capacity`,
+SQL Server container or a deployed Azure SQL DB
+(`sql-cap-<env>-<hash>.database.windows.net`, database `capacity`,
 `Authentication=Active Directory Default` from your `az` session).
 
 **Local auth** is mocked via `ALLOW_DEV_AUTH=true`: the API trusts these request
@@ -276,7 +282,7 @@ deployed environment.
 | ------ | ------- | ------- |
 | `x-dev-oid` | `…0001` | Entra object ID to impersonate |
 | `x-dev-roles` | `editor,leadership` | Comma-separated roles |
-| `x-dev-email` | `dev.user@andersenconsulting.com` | Display name / email |
+| `x-dev-email` | `dev.user@example.com` | Display name / email |
 
 ## Configuration reference
 
@@ -289,7 +295,7 @@ Function App settings (`local.settings.json` locally, app settings in Azure):
 | `AzureWebJobsStorage__accountName` | `st…` | Identity-based storage (Azure) |
 | `AzureSignalRConnectionString__serviceUri` | `https://…service.signalr.net` | Identity-based SignalR (Azure) |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | `InstrumentationKey=…` | Telemetry |
-| `ENTRA_APP_ID` | `f6f16c43-…` | User-facing app (client) ID for SSO |
+| `ENTRA_APP_ID` | app registration client ID | User-facing app (client) ID for SSO |
 | `GROUP_VIEWER` / `GROUP_EDITOR` / `GROUP_LEADERSHIP` | group object IDs | Role mapping |
 | `ALLOW_DEV_AUTH` | `false` (deployed) / `true` (local) | Enables header auth |
 | `DEV_DEFAULT_ROLES` | `editor,leadership` | Local only |
@@ -299,19 +305,17 @@ Function App settings (`local.settings.json` locally, app settings in Azure):
 - **EF Core migrations** in `api/Migrations/` are the source of truth for the
   schema. Apply with `dotnet ef database update`; add one with
   `dotnet ef migrations add <Name>` after model changes.
-- The dev Azure SQL database (`capacity` on `sql-cap-dev-tfoiku`) is kept
-  migrated as part of each deploy; running migrations requires an identity
-  with DDL rights (the SQL Entra admin), not the Function App's data-plane
-  identity.
-- The dev database is seeded from the original capacity spreadsheet (people,
-  projects, weekly allocations).
+- Deployed Azure SQL databases are kept migrated as part of each deploy;
+  running migrations requires an identity with DDL rights (the SQL Entra
+  admin), not the Function App's data-plane identity.
+- `db/seed/seed.sql` provides idempotent demo data for local development and
+  demos.
 
 ## Infrastructure (Bicep)
 
 `infra/main.bicep` is **subscription-scoped**: it creates the resource group
-(`rg-capacity-<env>`) and orchestrates one module per resource type. Dev lives
-in `rg-capacity-dev` (region `centralus`); resource names follow
-`<type>-cap-<env>-<hash>` (dev hash `tfoiku`).
+(`rg-capacity-<env>`) and orchestrates one module per resource type. Resource
+names follow `<type>-cap-<env>-<hash>`.
 
 | Module | Resource(s) |
 | ------ | ----------- |
@@ -350,23 +354,18 @@ Manual dev redeploy (if ever needed):
 ```bash
 # API
 cd api && dotnet publish -c Release -o /tmp/apipub && (cd /tmp/apipub && zip -qr /tmp/api.zip .)
-az functionapp deployment source config-zip -n func-cap-dev-tfoiku -g rg-capacity-dev --src /tmp/api.zip
+az functionapp deployment source config-zip -n func-cap-<env>-<hash> -g rg-capacity-<env> --src /tmp/api.zip
 # Web
 cd web && npm run build && npx @azure/static-web-apps-cli deploy ./dist \
-  --deployment-token $(az staticwebapp secrets list -n swa-cap-dev-tfoiku -g rg-capacity-dev -o tsv --query properties.apiKey) \
+  --deployment-token $(az staticwebapp secrets list -n swa-cap-<env>-<hash> -g rg-capacity-<env> -o tsv --query properties.apiKey) \
   --env production
 ```
 
 ## Deployment
 
-The dev environment is live:
-
-| Resource | Name |
-| -------- | ---- |
-| Static Web App | `swa-cap-dev-tfoiku` → https://salmon-desert-092eaec10.7.azurestaticapps.net |
-| Function App | `func-cap-dev-tfoiku` |
-| SQL server / DB | `sql-cap-dev-tfoiku` / `capacity` |
-| Resource group | `rg-capacity-dev` (centralus) |
+Each environment is a resource group (`rg-capacity-<env>`) containing a Static
+Web App, Function App, SQL server + `capacity` database, SignalR, storage,
+Key Vault, and logging (resource names `<type>-cap-<env>-<hash>`).
 
 ### One-time setup for a new environment
 
@@ -385,8 +384,8 @@ The dev environment is live:
 5. **Onboard users**: invite external users as B2B guests and add them to the
    viewer/editor/leadership security groups.
 
-Prod additionally sets `deployPrivateEndpoints = true` with the
-Andersen-supplied VNet subnet and private DNS zone IDs.
+Prod additionally sets `deployPrivateEndpoints = true` with your
+organization's VNet subnet and private DNS zone IDs.
 
 ## Security
 
@@ -398,7 +397,7 @@ Andersen-supplied VNet subnet and private DNS zone IDs.
   secrets in code or config.
 - **Append-only audit**: no updates/deletes; stores the actor's Entra OID.
 - **Networking (prod)**: SQL, SignalR, Key Vault, and Storage are reachable only
-  through private endpoints in the Andersen-supplied VNet.
+  through private endpoints in your organization's VNet.
 - **Transport**: HTTPS-only, TLS 1.2 minimum; security response headers set in
   `staticwebapp.config.json`.
 

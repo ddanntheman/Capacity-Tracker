@@ -11,7 +11,7 @@ The deployed Static Web App (https://salmon-desert-092eaec10.7.azurestaticapps.n
 1. Start Azurite (Functions needs a storage emulator): `azurite --silent --location /tmp/azurite &`. In non-interactive shells `azurite`/`func` may not be on PATH — use the nvm node bin (e.g. `export PATH="$HOME/.nvm/versions/node/v22.12.0/bin:$PATH"`) plus `export DOTNET_ROOT=$HOME/.dotnet; export PATH=$HOME/.dotnet:$PATH` for the API build.
 2. API: `cd api && func start` (port 7071). Point it at the dev Azure SQL DB via the connection string in local.settings.json (server `sql-cap-dev-tfoiku.database.windows.net`, DB `Capacity`). Azure auth comes from the `az` CLI session.
 3. Web: `cd web && npm run dev` (port 5173). The Vite dev server proxies `/api` to :7071.
-4. Auth is mocked in dev: set `ALLOW_DEV_AUTH=true` on the API; the web app sends dev headers for `dev.user@andersenconsulting.com` with editor+leadership roles. No login screen appears.
+4. Auth is mocked in dev: set `ALLOW_DEV_AUTH=true` on the API; the web app sends dev headers for `dev.user@example.com` with editor+leadership roles. No login screen appears.
 
 ## Golden-path flows to exercise
 - **Availability cards**: /dashboard "Fully available" (booked=0) and "Partially available" (0<booked<capacity) cards — click each and verify drill-down row counts equal the card numbers for the current week.

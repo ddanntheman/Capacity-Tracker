@@ -55,7 +55,7 @@ invalidates the relevant TanStack Query caches when an event arrives.
 - **Audit log** is append-only (no updates or deletes) and stores only the Entra
   OID of the actor, never PII.
 - **Networking (prod)**: SQL, SignalR, Key Vault, and Storage are reachable only
-  through private endpoints in the Andersen-supplied VNet.
+  through private endpoints in your organization.s VNet.
 
 ## Infrastructure modules
 

@@ -130,6 +130,6 @@ jobs:
         uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # v0.15.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          target: 'https://dev.capacitytracker.andersenconsulting.com' # Target staging URL
+          target: 'https://your-dev-environment.example.com' # Target staging URL
           fail_action: false
 

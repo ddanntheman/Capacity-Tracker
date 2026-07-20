@@ -81,7 +81,7 @@ jobs:
           az bicep build-params --file infra/main.prod.bicepparam --outfile /tmp/prod.params.json
 
       - name: Run Checkov (IaC Scan)
-        uses: bridgecrewio/checkov-action@a7683e7b72a04503521247973281ec8142e1ac1f # master
+        uses: bridgecrewio/checkov-action@7b972723c44fb3d256283fac96fae5d7c1894bb7 # master
         with:
           directory: infra
           framework: bicep

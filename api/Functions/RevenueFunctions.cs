@@ -511,7 +511,7 @@ public class RevenueFunctions(CapacityDbContext db, RequestAuthorizer auth, Audi
 
     // ---- Helpers ----
 
-    private static bool TiesOut(IReadOnlyList<RevenuePhaseDto> phases, decimal tcv) =>
+    private static bool TiesOut(List<RevenuePhaseDto> phases, decimal tcv) =>
         phases.Count > 0 && Math.Abs(phases.Sum(p => p.Amount) - tcv) <= TieTolerance;
 
     private static RevenueSetup SeedSetup(Guid projectId, PricingPlan plan, PlanEconomicsDto economics) => new()

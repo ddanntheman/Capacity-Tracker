@@ -457,7 +457,7 @@ function WipDialog({ projectId, onClose, onUploaded }: { projectId: string; onCl
             className="h-40 w-full rounded-md border border-[var(--color-border)] bg-transparent p-2 font-mono text-xs"
             value={csv}
             onChange={(e) => setCsv(e.target.value)}
-            placeholder={"Amanda Weeks,2026-07-06,32\nSub Developer,2026-07-06,40,6000"}
+            placeholder={"Jane Doe,2026-07-06,32\nSub Developer,2026-07-06,40,6000"}
           />
           <div>
             <Label className="text-xs">…or choose a CSV file</Label>

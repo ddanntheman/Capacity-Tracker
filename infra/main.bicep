@@ -27,7 +27,7 @@ param groupViewer string = ''
 param groupEditor string = ''
 param groupLeadership string = ''
 
-@description('Deploy private endpoints (requires VNet/subnet supplied by Andersen IT).')
+@description('Deploy private endpoints (requires VNet/subnet supplied by your IT team).')
 param deployPrivateEndpoints bool = false
 
 @description('Subnet resource ID hosting the private endpoints (when deployPrivateEndpoints is true).')

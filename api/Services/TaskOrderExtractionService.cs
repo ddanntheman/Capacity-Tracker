@@ -52,7 +52,7 @@ public static partial class TaskOrderExtractionService
         PricingModel? feeStructure = null;
         foreach (var (pattern, model) in FeeStructurePatterns)
         {
-            var m = Regex.Match(text, pattern, RegexOptions.IgnoreCase);
+            var m = Regex.Match(text, pattern, RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
             if (m.Success)
             {
                 feeStructure = model;
@@ -128,7 +128,7 @@ public static partial class TaskOrderExtractionService
 
     private static string NormalizeFrequency(string raw)
     {
-        var f = Regex.Replace(raw.Trim().ToLowerInvariant(), @"\s+", " ");
+        var f = MyRegex().Replace(raw.Trim().ToLowerInvariant(), " ");
         return f.Contains("milestone") || f.Contains("completion") || f.Contains("acceptance") ? "milestone" : f;
     }
 
@@ -139,4 +139,7 @@ public static partial class TaskOrderExtractionService
         var snippet = text[start..end].ReplaceLineEndings(" ").Trim();
         return (start > 0 ? "…" : string.Empty) + snippet + (end < text.Length ? "…" : string.Empty);
     }
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex MyRegex();
 }

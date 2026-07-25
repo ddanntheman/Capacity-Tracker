@@ -515,7 +515,7 @@ public class PricingPlansFunctions(CapacityDbContext db, RequestAuthorizer auth,
             plan.Notes,
             plan.CreatedAtUtc,
             plan.UpdatedAtUtc,
-            plan.LineItems
+            [.. plan.LineItems
                 .OrderBy(l => l.SortOrder).ThenBy(l => l.RoleTitle)
                 .Select(l => new PlanLineItemDto(
                     l.PlanLineItemId,
@@ -530,9 +530,8 @@ public class PricingPlansFunctions(CapacityDbContext db, RequestAuthorizer auth,
                     l.BillRateOverride,
                     l.ClientRate,
                     l.SortOrder,
-                    l.WeekHours.OrderBy(w => w.WeekStart)
-                        .Select(w => new PlanWeekHoursDto(w.WeekStart, w.Hours)).ToList()))
-                .ToList());
+                    [.. l.WeekHours.OrderBy(w => w.WeekStart)
+                        .Select(w => new PlanWeekHoursDto(w.WeekStart, w.Hours))]))]);
     }
 
     private async Task<IActionResult?> ValidateLine(UpsertPlanLineItemRequest? body)
@@ -568,7 +567,7 @@ public class PricingPlansFunctions(CapacityDbContext db, RequestAuthorizer auth,
     /// Post-win rolling-forecast changes (staffing swaps, roll-offs, change
     /// orders) must carry a reason so the audit trail explains them (DT-01a).
     /// </summary>
-    private static IActionResult? RequireReason(PricingPlan plan, string? reason) =>
+    private static BadRequestObjectResult? RequireReason(PricingPlan plan, string? reason) =>
         plan.Status == PlanStatus.ClosedWon && string.IsNullOrWhiteSpace(reason)
             ? new BadRequestObjectResult(new { error = "A reason (e.g. staffing change or change order) is required for changes to a Closed/Won engagement." })
             : null;

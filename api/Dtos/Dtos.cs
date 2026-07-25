@@ -342,7 +342,7 @@ public record PlanEconomicsDto(
     decimal SubcontractorCost,
     decimal GrossProfit,
     decimal? JobMarginPct,
-    // Andersen/SAP metrics view
+    // ERP/SAP metrics view
     decimal GrossFeesAtStandard,
     decimal RecoverableExpenses,
     decimal NetFees,

@@ -72,7 +72,7 @@ public class DeliveryFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
             return new BadRequestObjectResult(new { error = "Entry references a line item outside this engagement." });
         }
 
-        await UpsertActuals(id, body.Entries.Select(e => (
+        await UpsertActuals(body.Entries.Select(e => (
             e.PlanLineItemId,
             WeekHelper.WeekStartOf(e.WeekStart),
             e.Hours,
@@ -148,7 +148,7 @@ public class DeliveryFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
             entries.Add((line.PlanLineItemId, WeekHelper.WeekStartOf(week), hours, hardCost, ActualSource.WipUpload));
         }
 
-        await UpsertActuals(id, entries, result.User!);
+        await UpsertActuals(entries, result.User!);
         await db.SaveChangesAsync();
         return new OkObjectResult(new WipUploadResultDto(entries.Count, unmatched.Count, unmatched));
     }
@@ -392,7 +392,6 @@ public class DeliveryFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
     // ---- Helpers ----
 
     private async Task UpsertActuals(
-        Guid projectId,
         IEnumerable<(Guid LineId, DateOnly WeekStart, decimal Hours, decimal HardCost, ActualSource Source)> entries,
         CurrentUser user)
     {
@@ -404,22 +403,22 @@ public class DeliveryFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
         var byKey = existing.ToDictionary(a => (a.PlanLineItemId, a.WeekStart));
         var now = DateTime.UtcNow;
 
-        foreach (var entry in list)
+        foreach (var (LineId, WeekStart, Hours, HardCost, Source) in list)
         {
-            if (byKey.TryGetValue((entry.LineId, entry.WeekStart), out var row))
+            if (byKey.TryGetValue((LineId, WeekStart), out var row))
             {
-                if (row.Hours == entry.Hours && row.HardCost == entry.HardCost)
+                if (row.Hours == Hours && row.HardCost == HardCost)
                 {
                     continue;
                 }
 
                 audit.Record(nameof(LineActual), row.LineActualId.ToString(),
-                    $"actuals {entry.WeekStart:yyyy-MM-dd}",
+                    $"actuals {WeekStart:yyyy-MM-dd}",
                     $"{row.Hours:0.##}h / {row.HardCost:C0}",
-                    $"{entry.Hours:0.##}h / {entry.HardCost:C0}", user.Oid);
-                row.Hours = entry.Hours;
-                row.HardCost = entry.HardCost;
-                row.Source = entry.Source;
+                    $"{Hours:0.##}h / {HardCost:C0}", user.Oid);
+                row.Hours = Hours;
+                row.HardCost = HardCost;
+                row.Source = Source;
                 row.EnteredAtUtc = now;
                 row.EnteredBy = user.Email;
             }
@@ -428,18 +427,18 @@ public class DeliveryFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
                 var created = new LineActual
                 {
                     LineActualId = Guid.NewGuid(),
-                    PlanLineItemId = entry.LineId,
-                    WeekStart = entry.WeekStart,
-                    Hours = entry.Hours,
-                    HardCost = entry.HardCost,
-                    Source = entry.Source,
+                    PlanLineItemId = LineId,
+                    WeekStart = WeekStart,
+                    Hours = Hours,
+                    HardCost = HardCost,
+                    Source = Source,
                     EnteredAtUtc = now,
                     EnteredBy = user.Email,
                 };
                 db.LineActuals.Add(created);
                 audit.Record(nameof(LineActual), created.LineActualId.ToString(),
-                    $"actuals {entry.WeekStart:yyyy-MM-dd}", null,
-                    $"{entry.Hours:0.##}h / {entry.HardCost:C0}", user.Oid);
+                    $"actuals {WeekStart:yyyy-MM-dd}", null,
+                    $"{Hours:0.##}h / {HardCost:C0}", user.Oid);
             }
         }
     }
@@ -506,7 +505,7 @@ public class DeliveryFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
                         forecastByWeek.TryGetValue(week, out var f) ? f : 0m,
                         actual?.Hours,
                         actual?.HardCost,
-                        actual is null ? null : actual.Source.ToString().ToLowerInvariant());
+                        actual?.Source.ToString().ToLowerInvariant());
                 }).ToList();
                 return new DeliveryLineDto(
                     line.PlanLineItemId,
@@ -554,8 +553,8 @@ public class DeliveryFunctions(CapacityDbContext db, RequestAuthorizer auth, Aud
             lines,
             etc,
             activeOverride is null ? null : EtcOverrideDto.From(activeOverride),
-            changeOrders.Select(ChangeOrderDto.From).ToList(),
-            expenses.Select(RecoverableExpenseDto.From).ToList(),
+            [.. changeOrders.Select(ChangeOrderDto.From)],
+            [.. expenses.Select(RecoverableExpenseDto.From)],
             stale,
             lastEntry,
             zeroMonths);

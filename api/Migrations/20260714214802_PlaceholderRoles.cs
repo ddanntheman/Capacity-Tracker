@@ -2,28 +2,27 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace CapacityTracker.Api.Migrations
+namespace CapacityTracker.Api.Migrations;
+
+/// <inheritdoc />
+public partial class PlaceholderRoles : Migration
 {
     /// <inheritdoc />
-    public partial class PlaceholderRoles : Migration
+    protected override void Up(MigrationBuilder migrationBuilder)
     {
-        /// <inheritdoc />
-        protected override void Up(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.AddColumn<bool>(
-                name: "IsPlaceholder",
-                table: "People",
-                type: "bit",
-                nullable: false,
-                defaultValue: false);
-        }
+        migrationBuilder.AddColumn<bool>(
+            name: "IsPlaceholder",
+            table: "People",
+            type: "bit",
+            nullable: false,
+            defaultValue: false);
+    }
 
-        /// <inheritdoc />
-        protected override void Down(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.DropColumn(
-                name: "IsPlaceholder",
-                table: "People");
-        }
+    /// <inheritdoc />
+    protected override void Down(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.DropColumn(
+            name: "IsPlaceholder",
+            table: "People");
     }
 }

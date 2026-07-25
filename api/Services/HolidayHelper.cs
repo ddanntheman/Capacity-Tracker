@@ -26,7 +26,7 @@ public static class HolidayHelper
     public static int HolidaysInWeek(DateOnly weekStart)
     {
         var friday = weekStart.AddDays(4);
-        var years = weekStart.Year == friday.Year ? new[] { weekStart.Year } : new[] { weekStart.Year, friday.Year };
+        var years = weekStart.Year == friday.Year ? new[] { weekStart.Year } : [weekStart.Year, friday.Year];
         return years
             .SelectMany(FederalHolidays)
             .Count(h => h >= weekStart && h <= friday);

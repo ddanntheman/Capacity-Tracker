@@ -121,7 +121,7 @@ jobs:
       # Since we deploy directly to Azure App Service / Static Web Apps,
       # we run Trivy filesystem scan as a compliance baseline.
       - name: Trivy Filesystem Scan
-        uses: aquasecurity/trivy-action@c07df6fec6fa692e6fd1200d50aaa1fdd66f03c8 # master
+        uses: aquasecurity/trivy-action@2736533278103862a861f4a35ebac3e97854d956 # master
         with:
           scan-type: 'fs'
           ignore-unfixed: true
